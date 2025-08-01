@@ -1,0 +1,41 @@
+# 统一水印工具默认配置
+
+# 文本水印配置
+text_watermark:
+  algorithm: "credid"  # 默认使用CredID算法
+  model_name: "bert-base-uncased"
+  max_length: 512
+  temperature: 1.0
+  top_p: 0.9
+  
+  # CredID专用配置
+  credid:
+    watermark_key: "default_key"
+    embedding_dim: 768
+    threshold: 0.5
+
+# 图像水印配置  
+image_watermark:
+  algorithm: "stable_signature"  # 默认使用Stable Signature
+  model_name: "runwayml/stable-diffusion-v1-5"
+  resolution: 512
+  num_inference_steps: 50
+  guidance_scale: 7.5
+  
+  # Stable Signature专用配置
+  stable_signature:
+    watermark_key: "default_key"
+    decoder_path: "models/decoder.pth"
+    strength: 0.8
+
+# 输出配置
+output:
+  text_output_dir: "outputs/text"
+  image_output_dir: "outputs/images"
+  log_level: "INFO"
+  save_intermediate: false
+
+# 评估配置
+evaluation:
+  metrics: ["psnr", "ssim", "lpips"]  # 图像质量评估
+  text_metrics: ["perplexity", "bleu"]  # 文本质量评估 
