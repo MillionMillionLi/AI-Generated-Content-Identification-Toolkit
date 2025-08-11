@@ -73,8 +73,15 @@ class CredIDWatermark:
         # 初始化核心组件
         self.message_model = None
         self.wm_processor = None
+        self.original_message_length = None  # 记录原始消息的段数，用于循环提取
         
         logging.info(f"CredIDWatermark initialized in {self.mode} mode on {self.device}")
+    
+    def _reset_message_state(self):
+        """
+        重置消息相关的状态，用于处理新消息时清理之前的状态
+        """
+        self.original_message_length = None
     
     def _setup_processors(self, model: PreTrainedModel, tokenizer: PreTrainedTokenizer):
         """
@@ -99,7 +106,7 @@ class CredIDWatermark:
                     message_code_len=self.lm_params.get('message_len', 10),
                     random_permutation_num=self.lm_params.get('permutation_num', 50),
                     hash_prefix_len=self.lm_params.get('hash_prefix_len', 1),
-                    # LM模式需要的shifts参数（与原项目保持一致）
+               
                     shifts=self.lm_params.get('shifts', [21, 24, 3, 8, 14, 2, 4, 28, 31, 3, 8, 14, 2, 4, 28])
                 )
                 
@@ -136,21 +143,25 @@ class CredIDWatermark:
             配置好的水印处理器
         """
         try:
-            # 将消息转换为二进制
-            binary_message = self._message_to_binary(message, 'auto')
-            # # 🔧 修复：扩展消息段以避免索引越界
-            # max_tokens = self.config.get('max_new_tokens', 300)
-            # encode_len = self.lm_params.get('message_len', 10) * self.wm_params.get('encode_ratio', 8)
-            # needed_segments = (max_tokens + encode_len - 1) // encode_len
             
-            # # 如果需要更多段，循环重复消息
-            # if needed_segments > len(binary_message):
-            #     extended_message = []
-            #     for i in range(needed_segments):
-            #         extended_message.append(binary_message[i % len(binary_message)])
-            #     binary_message = extended_message
-                
-            # print(f"🔧 消息段扩展: {len(self._message_to_binary(message, 'auto'))} → {len(binary_message)} 段")            
+            original_binary = self._message_to_binary(message, 'auto')
+            
+            # 记录原始消息长度，用于提取时的循环限制
+            self.original_message_length = len(original_binary)
+            
+            # 启用循环嵌入：扩展消息段以支持长文本生成
+            max_tokens = self.config.get('max_new_tokens', 1800)  # 大幅增加默认值
+            encode_len = self.lm_params.get('message_len', 10) * self.wm_params.get('encode_ratio', 8)
+            needed_segments = (max_tokens + encode_len - 1) // encode_len
+            
+            # 如果需要更多段，循环重复消息
+            if needed_segments > len(original_binary):
+                binary_message = []
+                for i in range(needed_segments):
+                    binary_message.append(original_binary[i % len(original_binary)])
+                # print(f"循环嵌入: {len(original_binary)} → {len(binary_message)} 段 (支持{max_tokens}tokens)")
+            else:
+                binary_message = original_binary            
             if self.mode == 'lm':
                 processor = WmProcessorMessageModel(
                     message=binary_message,
@@ -210,6 +221,9 @@ class CredIDWatermark:
             }
         """
         try:
+            # 0. 重置消息状态，准备处理新消息
+            self._reset_message_state()
+            
             # 1. 设置处理器（如果还没设置）
             if self.message_model is None:
                 self._setup_processors(model, tokenizer)
@@ -217,10 +231,10 @@ class CredIDWatermark:
             # 2. 创建水印处理器
             wm_processor = self._create_wm_processor(message)
             
-            # 3. 配置生成参数
+            # 3. 配置生成参数 - 移除长度限制支持长文本生成
             generation_config = {
-                'max_new_tokens': self.config.get('max_new_tokens', 110),
-                'num_beams': self.config.get('num_beams', 4),
+                'max_new_tokens': self.config.get('max_new_tokens', 1800),  # 大幅增加默认长度
+                'num_beams': self.config.get('num_beams', 1),  # 减少beam search加速生成
                 'do_sample': self.config.get('do_sample', True),
                 'temperature': self.config.get('temperature', 0.7),
                 'pad_token_id': tokenizer.eos_token_id,
@@ -310,8 +324,12 @@ class CredIDWatermark:
                     self._setup_processors(model, default_tokenizer)
             
             # 3. 创建一个临时的水印处理器用于解码
+            # 🔧 关键修复：保护原始消息长度不被临时处理器覆盖
+            saved_original_length = self.original_message_length
             temp_message = "0"  # 占位符
             wm_processor = self._create_wm_processor(temp_message)
+            # 立即恢复原始状态
+            self.original_message_length = saved_original_length
             
             # 4. 准备候选消息编码
             if candidates_messages is not None:
@@ -344,7 +362,19 @@ class CredIDWatermark:
                 non_analyze=False
             )
             
-            # 6. 🔧 修复：智能处理多段解码结果
+            # 6.  循环提取限制：只取原始消息长度的段数
+            if decoded_messages and len(decoded_messages) > 0:
+                # 如果有记录的原始消息长度，限制解码结果的长度
+                if self.original_message_length and self.original_message_length > 0:
+                    if len(decoded_messages) > self.original_message_length:
+                        decoded_messages = decoded_messages[:self.original_message_length]
+                        print(f"🔧 循环提取限制: 截取前{self.original_message_length}段 (原始消息长度)")
+                    else:
+                        print(f"🔧 提取段数({len(decoded_messages)}) ≤ 原始长度({self.original_message_length})，无需截取")
+                else:
+                    print("⚠️  未找到原始消息长度记录，使用完整解码结果")
+            
+            # 7. 智能处理多段解码结果
             if decoded_messages and len(decoded_messages) > 0:
                 # 如果有候选消息，进行智能匹配
                 if candidates_messages is not None:
@@ -375,7 +405,7 @@ class CredIDWatermark:
                     success = final_confidence > confidence_threshold
                 else:
                     avg_confidence = 0.0
-                    final_confidence = match_confidence  # 🔧 修复：使用匹配置信度
+                    final_confidence = match_confidence  #  修复：使用匹配置信度
                     success = final_confidence > self.config.get('confidence_threshold', 0.6)
                 
                 return {
@@ -678,6 +708,7 @@ class CredIDWatermark:
         """获取当前模式"""
         return self.mode
     
+ 
     def reset(self):
         """重置处理器，清除缓存"""
         self.message_model = None

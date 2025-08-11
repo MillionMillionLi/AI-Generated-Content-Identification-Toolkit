@@ -60,9 +60,9 @@ def prepare_input_from_prompts(device,tokenizer, config, project_root):
             input_text = config.get('prompt', "A new study has found that the universe is made of")
             print(f"Using config prompt as fallback: {input_text}")
     
-    # Tokenize and truncate the input text
+    # Tokenize the input text (removed truncation for unlimited length)
     tokenized_input = tokenizer(input_text, return_tensors='pt').to(device)
-    tokenized_input = truncate(tokenized_input, max_length=300)
+    # tokenized_input = truncate(tokenized_input, max_length=300)  # 移除截断限制
 
     return tokenized_input
 

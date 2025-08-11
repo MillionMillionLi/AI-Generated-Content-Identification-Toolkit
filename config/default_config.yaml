@@ -16,13 +16,22 @@ text_watermark:
 
 # 图像水印配置  
 image_watermark:
-  algorithm: "stable_signature"  # 默认使用Stable Signature
-  model_name: "runwayml/stable-diffusion-v1-5"
+  algorithm: "prc"  # 默认使用PRC算法
+  model_name: "stabilityai/stable-diffusion-2-1-base"
   resolution: 512
   num_inference_steps: 50
   guidance_scale: 7.5
+  watermark_key: "default"
+  keys_dir: "keys"
   
-  # Stable Signature专用配置
+  # PRC算法专用配置
+  prc:
+    n: 16384  # 4 * 64 * 64，PRC码字长度
+    false_positive_rate: 0.00001  # 假阳性率
+    prc_t: 3  # 奇偶校验稀疏度
+    message_length: 512  # 支持的最大消息长度（位）
+    
+  # Stable Signature专用配置（保留以备后用）
   stable_signature:
     watermark_key: "default_key"
     decoder_path: "models/decoder.pth"

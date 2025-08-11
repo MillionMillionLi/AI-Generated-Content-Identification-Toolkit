@@ -7,7 +7,7 @@ __version__ = "0.1.0"
 __author__ = "码农团队"
 
 from .unified.watermark_tool import WatermarkTool
-from .text_watermark.text_watermark import TextWatermark
+from .text_watermark.credid_watermark import CredIDWatermark
 from .image_watermark.image_watermark import ImageWatermark
 
-__all__ = ['WatermarkTool', 'TextWatermark', 'ImageWatermark'] 
+__all__ = ['WatermarkTool', 'CredIDWatermark', 'ImageWatermark'] 

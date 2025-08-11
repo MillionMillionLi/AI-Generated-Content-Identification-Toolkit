@@ -3,6 +3,6 @@
 基于CredID等算法实现文本水印的嵌入和提取
 """
 
-from .text_watermark import TextWatermark
+from .credid_watermark import CredIDWatermark
 
-__all__ = ['TextWatermark'] 
+__all__ = ['CredIDWatermark'] 

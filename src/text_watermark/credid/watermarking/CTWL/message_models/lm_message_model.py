@@ -229,8 +229,15 @@ class LMMessageModel(BaseMessageModelFast):
         encodings['attention_mask'] = encodings['attention_mask'][:, -self.lm_prefix_len:]
         encodings = encodings.to(self.lm_model.device)
         # encodings = {key: value.to('cuda') for key, value in encodings.items()}
+        
+        # Filter out unsupported parameters for LLaMA models
+        filtered_encodings = {
+            'input_ids': encodings['input_ids'],
+            'attention_mask': encodings['attention_mask']
+        }
+        
         with torch.no_grad():
-            logits = self.lm_model(**encodings).logits
+            logits = self.lm_model(**filtered_encodings).logits
         final_pos = (encodings['input_ids'] != self.lm_tokenizer.pad_token_id).sum(dim=1) - 1
         logits = logits[torch.arange(logits.shape[0]), final_pos]
         if return_log_softmax:

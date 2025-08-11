@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-复杂混合消息的真实水印嵌入和提取测试
-测试像"alibaba20250725"这样的复杂字符串在真实模型上的水印效果
+水印衰减验证测试
+测试循环嵌入vs分段嵌入对水印强度的影响
 """
 
 import os
@@ -14,402 +14,295 @@ from typing import List, Dict, Any
 # 添加项目路径
 sys.path.append(os.path.dirname(__file__))
 
-def load_optimized_config():
-    """加载优化的配置"""
+# 导入水印相关模块
+from src.text_watermark.credid_watermark import CredIDWatermark
+
+def load_test_config():
+    """加载测试配置"""
     with open('config/text_config.yaml', 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
     
-    # 针对复杂消息的优化配置
-    config['max_new_tokens'] = 300  # 更长的文本支持多段消息
+    # 水印衰减测试配置
     config['num_beams'] = 1  # 加速测试
-    config['lm_params']['message_len'] = 10
-    config['wm_params']['encode_ratio'] = 8  # 适中的编码比率
-    config['confidence_threshold'] = 0.5  # 适中的置信度阈值
+    config['lm_params']['message_len'] = 10  # 10-bit编码
+    config['wm_params']['encode_ratio'] = 8   # 降低编码密度，确保足够tokens
+    # 调整前缀长度避免跳过第一段  
+    if 'lm_prefix_len' in config:
+        config['lm_prefix_len'] = 5
+    config['max_new_tokens'] = 3000  # 确保足够长的文本生成
+    config['confidence_threshold'] = 0.5
     
     return config
 
-def test_complex_message_formats():
-    """测试复杂消息格式的转换"""
-    print("=== 复杂消息格式转换测试 ===\n")
+
+def load_model_and_tokenizer(config):
+    """加载模型和分词器"""
+    from transformers import AutoModelForCausalLM, AutoTokenizer
     
-    from src.text_watermark.credid_watermark import CredIDWatermark
+    model_name = config['model_name']
+    print(f"🏗️  加载模型: {model_name}")
     
-    config = load_optimized_config()
+    start_time = time.time()
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        device_map="auto",
+        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+    )
+    
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    
+    load_time = time.time() - start_time
+    print(f"✅ 模型加载成功 ({load_time:.1f}s)")
+    
+    return model, tokenizer
+
+
+def print_detailed_confidence(extract_result, original_segments):
+    """打印每段水印的详细置信度信息"""
+    print(f"📊 逐段置信度分析:")
+    
+    if 'detailed_confidence' not in extract_result:
+        print("   ⚠️  未找到detailed_confidence信息")
+        return
+    
+    detailed_conf = extract_result['detailed_confidence']
+    if not detailed_conf or len(detailed_conf) == 0:
+        print("   ⚠️  详细置信度列表为空")
+        return
+    
+    # 直接使用提取的消息进行分析，不需要转换
+    extracted_message = extract_result.get('extracted_message', '')
+    
+    match_count = 0
+    total_confidence = 0
+    
+    # 只显示原始段数的置信度，避免显示冗余的循环段
+    display_count = min(len(detailed_conf), len(original_segments))
+    
+    for i in range(display_count):
+        if i < len(detailed_conf) and len(detailed_conf[i]) >= 3:
+            conf_data = detailed_conf[i]
+            abs_conf = conf_data[0]      # 绝对置信度 
+            rel_conf = conf_data[1]      # 相对置信度
+            prob_score = conf_data[2]    # 概率分数
+            
+            # 原始段信息
+            orig_seg = original_segments[i] if i < len(original_segments) else "?"
+            
+            total_confidence += prob_score
+            
+            print(f"   段{i+1} : 置信度={abs_conf}, 相对={rel_conf}, 概率={prob_score:.3f}")
+    
+    # 总结统计
+    avg_confidence = total_confidence / display_count if display_count > 0 else 0
+    print(f"   ✅ 总结: {display_count}段分析完成, 平均概率={avg_confidence:.3f}")
+   
+
+
+def test_cyclic_embedding(message_segments, prompt, config, model, tokenizer):
+    """
+    测试循环嵌入方法（现有方法）
+    
+    Args:
+        message_segments: 消息段列表 
+        prompt: 提示文本
+        config: 配置
+        model, tokenizer: 模型和分词器
+        
+    Returns:
+        测试结果字典
+    """
+    print("🔧 方法1: 循环嵌入（现有方法）")
+    print("-" * 40)
+    
+    # 重新组合完整消息
+    full_message = "".join(message_segments)
+    print(f"🎯 完整消息: '{full_message}'")
+    print(f"📝 分段: {message_segments}")
+    
+    # 使用现有的embed方法（内部循环嵌入）
     watermark = CredIDWatermark(config)
     
-    # 真实世界的复杂消息
-    complex_messages = [
-        # 1. 公司+日期格式
-        {
-            "message": "alibaba20250725",
-            "description": "公司名 + 日期",
-            "expected_segments": ["alibaba", "2025", "0725"]
-        },
-        # 2. 用户ID格式
-        {
-            "message": "user123456789",
-            "description": "用户前缀 + 长数字ID",
-            "expected_segments": ["user", "1234", "5678", "9"]
-        },
-        # 3. 版本号格式
-        {
-            "message": "version2024beta3",
-            "description": "版本 + 年份 + 类型 + 版本号",
-            "expected_segments": ["version", "2024", "beta", "3"]
-        },
-        # 4. API密钥格式
-        {
-            "message": "key2025abc123def456",
-            "description": "前缀 + 年份 + 混合码",
-            "expected_segments": ["key", "2025", "abc", "123", "def", "456"]
-        },
-        # 5. 时间戳格式
-        {
-            "message": "session20250725143052",
-            "description": "会话 + 完整时间戳",
-            "expected_segments": ["session", "2025", "0725", "1430", "52"]
-        },
-        # 6. 产品代码
-        {
-            "message": "iphone15pro256gb",
-            "description": "产品 + 型号 + 版本 + 容量",
-            "expected_segments": ["iphone", "15", "pro", "256", "gb"]
-        },
-        # 7. 订单号
-        {
-            "message": "order2025010100123",
-            "description": "订单 + 日期 + 序号",
-            "expected_segments": ["order", "2025", "0101", "0012", "3"]
-        }
-    ]
     
-    for i, case in enumerate(complex_messages, 1):
-        message = case["message"]
-        description = case["description"]
-        
-        print(f"{i}. 📝 消息: '{message}'")
-        print(f"   💭 描述: {description}")
-        print(f"   📏 长度: {len(message)} 字符")
-        
-        # 测试不同的分割模式
-        modes = ['auto', 'smart', 'whole']
-        for mode in modes:
-            try:
-                segments = watermark._message_to_binary(message, mode)
-                print(f"   {mode:>6} 模式: {segments} (共{len(segments)}段)")
-                
-                if mode == 'smart':
-                    text_segments = watermark._smart_segment_string(message)
-                    print(f"           分割为: {text_segments}")
-                    
-                    # 验证分割结果
-                    joined = ''.join(text_segments)
-                    if joined == message:
-                        print("           ✅ 分割无损")
-                    else:
-                        print(f"           ⚠️  分割有损: '{joined}' ≠ '{message}'")
-                        
-            except Exception as e:
-                print(f"   {mode:>6} 模式: ❌ 错误 - {e}")
-        
-        print()
+    start_time = time.time()
+    embed_result = watermark.embed(
+        model, tokenizer, prompt, message_segments,  # 直接传递段列表
+        segmentation_mode="auto"  # 让系统自动识别为字符串列表
+    )
+    embed_time = time.time() - start_time
+    
+    if embed_result['success']:
+        watermarked_text = embed_result['watermarked_text']
+        # 计算token数量用于验证长度充足性
+        try:
+            # 使用模型自带的tokenizer计算精确token数
+            tokens = tokenizer.encode(watermarked_text)
+            token_count = len(tokens)
+        except:
+            # 备用方案：粗略估算 1 token ≈ 4 chars
+            token_count = len(watermarked_text) // 4
+            
+        print(f"✅ 嵌入成功 ({embed_time:.1f}s)")
+        print(f"📏 文本长度: {len(watermarked_text)} 字符")
+        print(f"🔢 Token估算: ~{token_count} tokens")
+        print(f"🎯 理论需求: {len(message_segments)} 段 × {config.get('wm_params', {}).get('encode_ratio', 10) * config.get('lm_params', {}).get('message_len', 10)} = ~{len(message_segments) * config.get('wm_params', {}).get('encode_ratio', 10) * config.get('lm_params', {}).get('message_len', 10)} tokens")
+        print(f"📊 长度充足性: {'✅ 充足' if token_count >= len(message_segments) * 100 else '⚠️ 可能不足'}")
 
-def test_real_watermarking_with_complex_messages():
-    """使用真实模型测试复杂消息的水印嵌入和提取"""
-    print("=== 真实模型复杂消息水印测试 ===\n")
+
+        
+        # 提取测试
+        print(f"\n🔍 开始提取...")
+        extract_start = time.time()
+        
+        extract_result = watermark.extract(
+            watermarked_text, model, tokenizer,
+            candidates_messages=message_segments  # 传递段列表作为候选
+        )
+        
+        extract_time = time.time() - extract_start
+        
+        # 显示提取结果详情
+        print(f"🔍 提取结果详情:")
+        print(f"   提取成功: {'✅' if extract_result['success'] else '❌'}")
+        print(f"   提取编码: '{extract_result['binary_message']}'")
+        # 使用原始分段计算对应编码，避免与自动分段结果长度不一致导致的越界
+        original_binary = watermark._message_to_binary(message_segments)
+        print(f"   原始编码: '{original_binary}'")
+       
+        print(f"   整体置信度: {extract_result['confidence']:.3f}")
+        print(f"   提取时间: {extract_time:.1f}s")
+       
+        
+        # 显示逐段详情
+        print()
+        print_detailed_confidence(extract_result, message_segments)
+        
+        return {
+            'method': 'cyclic',
+            'full_message': full_message,
+            'segments': message_segments,
+            'embed_success': True,
+            'embed_time': embed_time,
+            'text_length': len(watermarked_text),
+            'watermarked_text': watermarked_text,
+            'extract_result': extract_result,
+            'extract_time': extract_time,    
+        }
+    else:
+        print(f"❌ 嵌入失败: {embed_result.get('error', 'Unknown')}")
+        print(f"🎯 原始消息段: {message_segments}")
+        return {
+            'method': 'cyclic',
+            'embed_success': False,
+            'error': embed_result.get('error', 'Unknown')
+        }
+
+
+def test_watermark_attenuation():
+    
+    print("=" * 60)
     
     # 检查CUDA
     if torch.cuda.is_available():
         device_name = torch.cuda.get_device_name()
         memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
-        print(f"🔥 CUDA可用: {device_name}")
-        print(f"   显存: {memory_gb:.1f} GB\n")
+        print(f"🔥 CUDA: {device_name}")
+        print(f"   显存: {memory_gb:.1f} GB")
     else:
-        print("⚠️  CUDA不可用，使用CPU\n")
+        print("⚠️  CUDA不可用，使用CPU")
     
     try:
-        from src.text_watermark.credid_watermark import CredIDWatermark
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        
-        config = load_optimized_config()
-        print(f"📋 加载配置...")
+        # 加载配置和模型
+        config = load_test_config()
+        print(f"\n📋 测试配置:")
         print(f"   模型: {config['model_name']}")
-        print(f"   最大token: {config['max_new_tokens']}")
-        print(f"   编码比率: {config['wm_params']['encode_ratio']}")
+        print(f"   message_len: {config['lm_params']['message_len']} (10-bit编码)")
+        print(f"   encode_ratio: {config['wm_params']['encode_ratio']} ")
         
-        # 加载模型
-        print(f"\n🏗️  加载模型和分词器...")
-        model_name = config['model_name']
+        print(f"\n🏗️  加载模型...")
+        model, tokenizer = load_model_and_tokenizer(config)
         
-        start_time = time.time()
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            device_map="auto",
-            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
-        )
-        
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
-        
-        load_time = time.time() - start_time
-        print(f"✅ 模型加载成功 ({load_time:.1f}s)")
-        
-        # 创建水印处理器
-        watermark = CredIDWatermark(config)
-        
-        # 测试用例：不同类型的复杂消息
+        # 测试用例 - 每个都有5段消息，使用适中长度的prompt避免对齐问题
         test_cases = [
-
             {
-                "name": "版本号",
-                "message": "v2024.1.5beta",
-                "mode": "smart",
-                "prompt": "The software release includes"
+                'name': '版本号格式',
+                'message_segments': ['v', '2024', '1', '5', 'beta'],
+                'prompt': 'Please provide a detailed analysis of the software release including version specifications, feature updates, compatibility requirements, and user documentation'
             },
             {
-                "name": "API密钥",
-                "message": "token2025abc123",
-                "mode": "smart",
-                "prompt": "The authentication service generated"
+                'name': '文本序列', 
+                'message_segments': ['hello', 'world', 'test', 'case', 'one'],
+                'prompt': 'This example demonstrates natural language processing techniques including tokenization methods, semantic analysis, machine learning architectures, and practical implementation guidelines'
             },
             {
-                "name": "时间戳",
-                "message": "log20250725143000",
-                "mode": "smart",
-                "prompt": "The system recorded"
+                'name': '字母序列',
+                'message_segments': ['A', 'B', 'C', 'D', 'E'], 
+                'prompt': 'The sequence analysis contains algorithmic approaches, data structure implementations, optimization techniques, and performance benchmarking procedures for efficient processing'
+            },
+            {
+                'name': '数字文本混合',
+                'message_segments': ['123', 'test', '456', 'demo', '789'],
+                'prompt': 'The mixed content analysis shows statistical methodologies, data mining techniques, pattern recognition algorithms, and machine learning approaches for predictive modeling'
             }
         ]
         
-        successful_tests = 0
-        total_tests = len(test_cases)
+        # 执行所有测试用例
+        print(f"\n" + "=" * 60)
+        print("开始多用例对比测试")
+        print("=" * 60)
         
+        all_results = []
         for i, test_case in enumerate(test_cases, 1):
-            print(f"\n--- 测试 {i}/{total_tests}: {test_case['name']} ---")
-            message = test_case['message']
-            mode = test_case['mode']
-            prompt = test_case['prompt']
+            print(f"\n🎯 测试案例 {i}: {test_case['name']}")
+            print(f"   消息段: {test_case['message_segments']}")
+            print(f"   完整消息: {''.join(test_case['message_segments'])}")
+            print(f"   提示文本: '{test_case['prompt']}'")
             
-            print(f"🎯 消息: '{message}'")
-            print(f"📝 提示: '{prompt}'")
-            print(f"🔧 分割模式: {mode}")
+            # 执行测试
+            result = test_cyclic_embedding(
+                test_case['message_segments'], 
+                test_case['prompt'], 
+                config, model, tokenizer
+            )
+            result['test_name'] = test_case['name']
+            all_results.append(result)
             
-            try:
-                # 显示分割结果
-                segments = watermark._smart_segment_string(message)
-                print(f"   分割为: {segments}")
-                encoded = watermark._message_to_binary(message, mode)
-                print(f"   编码: {encoded}")
-                
-                # 嵌入水印
-                print(f"\n⚡ 开始嵌入...")
-                embed_start = time.time()
-                
-                embed_result = watermark.embed(
-                    model, tokenizer, prompt, message, segmentation_mode=mode
-                )
-                
-                embed_time = time.time() - embed_start
-                
-                if embed_result['success']:
-                    watermarked_text = embed_result['watermarked_text']
-                    print(f"✅ 嵌入成功 ({embed_time:.1f}s)")
-                    print(f"📄 生成文本: {watermarked_text[:150]}...")
-                    print(f"📊 原始消息: {embed_result['original_message']}")
-                    print(f"🔢 编码形式: {embed_result['binary_message']}")
-                    print(f"📏 文本长度: {len(watermarked_text)} 字符")
-                    
-                    # 提取水印 - 先尝试候选搜索，失败则全范围搜索
-                    print(f"\n🔍 开始提取...")
-                    extract_start = time.time()
-                    
-                    # 方案1：限定候选搜索（快速）
-                    candidates = [message, "token2025abc123", "v2024.1.5beta", "log20250725143000"]
-                    extract_result = watermark.extract(
-                        watermarked_text,
-                        model=model,
-                        tokenizer=tokenizer,
-                        candidates_messages=candidates
-                    )
-                    
-                    extract_time = time.time() - extract_start
-                    
-                    if extract_result['success']:
-                        print(f"✅ 提取成功 ({extract_time:.1f}s)")
-                        print(f"🎯 提取消息: {extract_result['extracted_message']}")
-                        print(f"📈 置信度: {extract_result['confidence']:.3f}")
-                        print(f"🔢 解码形式: {extract_result['binary_message']}")
-                        
-                        # 验证匹配
-                        extracted = str(extract_result['extracted_message'])
-                        original = str(embed_result['original_message'])
-                        
-                        if extracted == original:
-                            print(f"🎯 消息匹配: ✅ 完全正确")
-                            successful_tests += 1
-                        elif message in extracted or any(seg in extracted for seg in segments):
-                            print(f"🎯 消息匹配: 🔶 部分匹配")
-                            successful_tests += 0.5
-                        else:
-                            print(f"🎯 消息匹配: ❌ 不匹配")
-                            print(f"   期望: '{original}'")
-                            print(f"   实际: '{extracted}'")
-                        
-                        # 分析多段消息效果
-                        if len(embed_result['binary_message']) > 1:
-                            print(f"📊 多段分析:")
-                            print(f"   嵌入段数: {len(embed_result['binary_message'])}")
-                            print(f"   提取段数: {len(extract_result['binary_message'])}")
-                            
-                    else:
-                        print(f"❌ 提取失败: {extract_result.get('error', 'Unknown error')}")
-                        print(f"   置信度: {extract_result.get('confidence', 0):.3f}")
-                        
-                else:
-                    print(f"❌ 嵌入失败: {embed_result.get('error', 'Unknown error')}")
-                    
-            except Exception as e:
-                print(f"💥 测试失败: {e}")
-                import traceback
-                traceback.print_exc()
+            if i < len(test_cases):
+                print(f"\n" + "-" * 40 + " 下一个测试 " + "-" * 40)
         
-        # 测试结果总结
-        print(f"\n=== 测试结果总结 ===")
-        print(f"🎯 成功率: {successful_tests}/{total_tests} ({successful_tests/total_tests*100:.1f}%)")
+        # 汇总所有测试结果
+        print(f"\n" + "=" * 60)
+        print("📈 测试结果汇总")
+        print("=" * 60)
         
-        if successful_tests >= total_tests * 0.8:
-            print("✅ 整体测试效果: 优秀")
-        elif successful_tests >= total_tests * 0.6:
-            print("🔶 整体测试效果: 良好")
-        else:
-            print("⚠️  整体测试效果: 需要优化")
-            
+        success_count = sum(1 for r in all_results if r.get('embed_success', False))
+      
+        
     except Exception as e:
-        print(f"💥 测试初始化失败: {e}")
+        print(f"\n💥 测试失败: {e}")
         import traceback
         traceback.print_exc()
 
-def analyze_complex_message_performance():
-    """分析复杂消息的性能特征"""
-    print("=== 复杂消息性能分析 ===\n")
-    
-    from src.text_watermark.credid_watermark import CredIDWatermark
-    
-    config = load_optimized_config()
-    watermark = CredIDWatermark(config)
-    
-    # 性能测试案例
-    perf_cases = [
-        ("短消息", "abc123", 1),
-        ("中等消息", "user20250725", 2),
-        ("长消息", "alibaba20250725session", 3),
-        ("超长消息", "company2025Q1version1.2.3beta", 4),
-        ("极长消息", "system20250725143052user123session456token", 6)
-    ]
-    
-    print("消息复杂度与分割效果分析:")
-    print("-" * 60)
-    
-    for name, message, expected_segments in perf_cases:
-        print(f"{name:>8}: '{message}'")
-        
-        # 分析不同模式的分割效果
-        for mode in ['whole', 'auto', 'smart']:
-            try:
-                segments = watermark._message_to_binary(message, mode)
-                segment_count = len(segments)
-                
-                # 计算效率指标
-                efficiency = min(segment_count / expected_segments, 1.0) * 100
-                
-                print(f"         {mode:>5}: {segment_count}段 (效率: {efficiency:.0f}%)")
-                
-                if mode == 'smart' and segment_count > 1:
-                    text_segments = watermark._smart_segment_string(message)
-                    print(f"               分割: {text_segments}")
-                    
-            except Exception as e:
-                print(f"         {mode:>5}: ❌ {e}")
-        
-        print()
-
-def demo_usage_examples():
-    """演示使用示例"""
-    print("=== 使用示例演示 ===\n")
-    
-    examples = [
-        {
-            "scenario": "用户追踪水印",
-            "code": '''
-# 场景：用户生成内容追踪
-user_id = "user20250725001"
-result = watermark.embed(model, tokenizer, prompt, user_id, "smart")
-
-# 分割效果: ["user", "2025", "0725", "001"]
-# 每个段依次嵌入到生成文本的不同位置
-''',
-            "benefits": ["精确用户追踪", "时间戳记录", "序号管理"]
-        },
-        {
-            "scenario": "版本信息嵌入",
-            "code": '''
-# 场景：AI模型版本追踪
-version = "gpt4.5turbo2024"
-result = watermark.embed(model, tokenizer, prompt, version, "smart")
-
-# 分割效果: ["gpt", "4", "5", "turbo", "2024"]
-# 完整版本信息分段嵌入
-''',
-            "benefits": ["版本追溯", "模型识别", "发布时间记录"]
-        },
-        {
-            "scenario": "API密钥水印",
-            "code": '''
-# 场景：API调用追踪
-api_key = "key2025abc123def"
-result = watermark.embed(model, tokenizer, prompt, api_key, "smart")
-
-# 分割效果: ["key", "2025", "abc", "123", "def"]
-# 分段嵌入提高隐蔽性
-''',
-            "benefits": ["API追踪", "密钥管理", "使用监控"]
-        }
-    ]
-    
-    for i, example in enumerate(examples, 1):
-        print(f"{i}. 🎯 {example['scenario']}")
-        print("   代码示例:")
-        print(example['code'])
-        print("   优势:")
-        for benefit in example['benefits']:
-            print(f"     • {benefit}")
-        print()
 
 if __name__ == "__main__":
-    print("🚀 复杂混合消息真实水印测试\n")
+    print("🚀 水印衰减验证测试\n")
     
-    # 1. 消息格式转换测试
-    test_complex_message_formats()
-    
-    # 2. 性能分析
-    analyze_complex_message_performance()
-    
-    # 3. 使用示例
-    demo_usage_examples()
-    
-    # 4. 真实模型测试（需要用户确认）
-    print("=" * 60)
-    do_real_test = input("是否进行真实模型水印测试？(需要加载大模型，约3-5分钟) [y/N]: ").lower().strip()
-    
-    if do_real_test == 'y':
-        test_real_watermarking_with_complex_messages()
+    # 检查命令行参数
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] in ['--test', '-t', '--attenuation']:
+        print("开始水印衰减验证测试...")
+        test_watermark_attenuation()
     else:
-        print("跳过真实模型测试")
+        try:
+            do_test = input("是否进行水印衰减验证测试？(需要加载大模型，约5-10分钟) [y/N]: ").lower().strip()
+            if do_test == 'y':
+                test_watermark_attenuation()
+            else:
+                print("跳过测试")
+        except EOFError:
+            print("非交互模式，跳过测试")
+            print("提示：使用 'python test_complex_messages_real.py --test' 进行测试")
     
-    print("\n✅ 测试完成！")
-    print("\n🎯 **核心能力总结**:")
-    print("   ✅ 智能分割混合字母数字消息")
-    print("   ✅ 支持多种分割模式 (auto/smart/whole)")
-    print("   ✅ 真实模型嵌入和提取")
-    print("   ✅ 保持高精度和可靠性")
-    print("   ✅ 适应各种实际应用场景") 
+    print("\n✅ 程序结束") 

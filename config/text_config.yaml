@@ -8,11 +8,11 @@ mode: "lm"                                 # 模式: "lm" (专家级) 或 "rando
 device: "auto"                             # 设备: "auto", "cuda", "cpu"
 
 # === 生成参数 ===
-max_new_tokens: 110                        # 最大生成token数
+max_new_tokens: 1800                        # 最大生成token数
 num_beams: 4                               # beam search参数
 do_sample: true                            # 是否采样
 temperature: 0.7                           # 生成温度
-top_p: 0.9                                 # nucleus sampling参数
+top_p: 0.9                                  # nucleus sampling参数
 top_k: 50                                  # top-k采样参数
 
 # === CredID语言模型参数 ===
