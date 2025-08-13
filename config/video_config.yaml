@@ -1,0 +1,29 @@
+# 视频水印（VideoSeal）运行配置
+# 说明：模型结构与默认超参由模型卡（cards/*.yaml）维护；本文件仅管理运行时策略与可选覆盖项。
+
+# 使用的模型卡名称（位于 src/video_watermark/videoseal/cards/）
+model_card: "videoseal_1.0"   # 可选：videoseal_0.0
+
+# 设备选择
+device: "auto"                # 可选："cuda" | "cpu" | "auto"
+
+# 预处理短边尺寸
+short_edge_size: -1            # -1 表示保持原视频分辨率；>0 表示按短边等比缩放到该值
+
+# 低分辨率下进行感知衰减（更省显存）
+lowres_attenuation: true
+
+# 路径配置
+output_dir: "outputs/"        # 结果输出目录
+ckpts_dir: "ckpts/"          # 权重下载/缓存目录（由代码按需创建/使用）
+
+# 可选：覆盖模型卡中的部分参数（不填或设为 null 则保持模型卡默认）
+override:
+  scaling_w: null              # 例如 0.2（增大=更易检测；但更可能可见）
+  scaling_i: null              # 例如 1.0
+  videoseal_chunk_size: null   # 例如 16/32（显存-速度权衡）
+  videoseal_step_size: null    # 例如 4（时间一致性-速度权衡）
+  blending_method: null        # 例如 "additive"
+  attenuation: null            # 例如 "jnd_1_1"（需与 configs/attenuation.yaml 对应）
+
+

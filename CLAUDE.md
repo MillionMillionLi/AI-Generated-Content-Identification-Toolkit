@@ -55,6 +55,26 @@ watermark-tool --mode image --action embed --input "image.png" --key "your_key"
 python examples/quick_start.py
 ```
 
+### 使用视频水印（VideoSeal）最小封装
+
+已将 VideoSeal 以子包形式集成于 `src/video_watermark/videoseal`，并在 `src/video_watermark/__init__.py` 暴露公共入口：
+
+```python
+from video_watermark import load
+
+# 加载默认 256-bit 模型（会按需下载权重到运行目录 ckpts/）
+model = load("videoseal")
+
+# 对图像/视频执行嵌入或检测（参见 videoseal 文档）
+# 例：对视频帧张量进行嵌入（FxCxHxW, 值域[0,1]）
+# outputs = model.embed(frames, is_video=True)
+# msgs = outputs["msgs"]
+# frames_w = outputs["imgs_w"]
+```
+
+依赖提示：需要 `ffmpeg` 可执行和以下 Python 包（若缺请安装）
+`ffmpeg-python av omegaconf timm==0.9.16 lpips pycocotools PyWavelets tensorboard calflops pytorch-msssim scikit-image scipy tqdm safetensors`
+
 ### Testing and Development
 ```bash
 # PRC图像水印测试 (推荐)
