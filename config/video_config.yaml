@@ -1,29 +1,88 @@
-# 视频水印（VideoSeal）运行配置
-# 说明：模型结构与默认超参由模型卡（cards/*.yaml）维护；本文件仅管理运行时策略与可选覆盖项。
+# 统一视频水印工具配置
+# 集成HunyuanVideo文生视频 + VideoSeal水印技术
 
-# 使用的模型卡名称（位于 src/video_watermark/videoseal/cards/）
-model_card: "videoseal_1.0"   # 可选：videoseal_0.0
+# === 系统设置 ===
+system:
+  device: "auto"               # 可选："cuda" | "cpu" | "auto"
+  cache_dir: "/fs-computility/wangxuhong/limeilin/.cache/huggingface/hub"  # HuggingFace模型缓存目录
+  output_dir: "tests/test_results"    # 结果输出目录
+  log_level: "INFO"            # 日志级别
 
-# 设备选择
-device: "auto"                # 可选："cuda" | "cpu" | "auto"
+# === HunyuanVideo文生视频配置 ===
+hunyuan_video:
+  model_repo: "tencent/HunyuanVideo"  # HuggingFace模型仓库
+  
+  # 默认生成参数
+  default_params:
+    num_frames: 49             # 默认帧数
+    height: 720                # 默认高度
+    width: 1280                # 默认宽度
+    num_inference_steps: 30    # 默认推理步数
+    guidance_scale: 6.0        # 默认引导强度
+    fps: 8                     # 输出视频帧率
+  
+  # 快速测试参数（较小资源占用）
+  test_params:
+    num_frames: 16             # 测试帧数
+    height: 320                # 测试高度  
+    width: 320                 # 测试宽度
+    num_inference_steps: 10    # 测试推理步数
+    guidance_scale: 6.0        # 测试引导强度
+    fps: 8                     # 测试帧率
 
-# 预处理短边尺寸
-short_edge_size: -1            # -1 表示保持原视频分辨率；>0 表示按短边等比缩放到该值
+# === VideoSeal水印配置 ===
+videoseal:
+  model_card: "videoseal_1.0"  # 使用的VideoSeal模型卡
+  
+  # 水印参数
+  watermark_params:
+    lowres_attenuation: true   # 低分辨率衰减
+    is_video: true             # 视频模式
+    detection_threshold: 0.1   # 检测置信度阈值
+  
+  # 可选覆盖参数
+  override:
+    scaling_w: null            # 水印强度缩放
+    scaling_i: null            # 图像强度缩放
+    videoseal_chunk_size: null # 处理块大小
+    videoseal_step_size: null  # 步长
+    blending_method: null      # 混合方法
 
-# 低分辨率下进行感知衰减（更省显存）
-lowres_attenuation: true
+# === 批量处理配置 ===
+batch_processing:
+  max_concurrent: 1            # 最大并发数（避免内存溢出）
+  memory_cleanup: true         # 处理完成后清理内存
+  save_intermediate: false     # 是否保存中间结果
 
-# 路径配置
-output_dir: "outputs/"        # 结果输出目录
-ckpts_dir: "ckpts/"          # 权重下载/缓存目录（由代码按需创建/使用）
+# === 性能优化配置 ===
+performance:
+  enable_compile: true         # 启用模型编译优化（如果支持）
+  enable_cpu_offload: true     # 启用CPU卸载（节省GPU内存）
+  enable_vae_slicing: true     # 启用VAE切片（节省内存）
+  auto_mixed_precision: true   # 启用自动混合精度
 
-# 可选：覆盖模型卡中的部分参数（不填或设为 null 则保持模型卡默认）
-override:
-  scaling_w: null              # 例如 0.2（增大=更易检测；但更可能可见）
-  scaling_i: null              # 例如 1.0
-  videoseal_chunk_size: null   # 例如 16/32（显存-速度权衡）
-  videoseal_step_size: null    # 例如 4（时间一致性-速度权衡）
-  blending_method: null        # 例如 "additive"
-  attenuation: null            # 例如 "jnd_1_1"（需与 configs/attenuation.yaml 对应）
+# === 演示和测试配置 ===
+demo:
+  # 演示用的测试用例
+  test_cases:
+    - prompt: "一只可爱的小猫在花园里玩耍"
+      message: "demo_cat_2025"
+      description: "小猫演示"
+    
+    - prompt: "春天的樱花树下，花瓣飘落"  
+      message: "cherry_blossom_scene"
+      description: "樱花场景"
+    
+    - prompt: "现代城市夜景，霓虹灯闪烁"
+      message: "city_night_lights"
+      description: "城市夜景"
+  
+  # 演示参数（快速运行）
+  demo_params:
+    num_frames: 25
+    height: 480
+    width: 640
+    num_inference_steps: 20
+    fps: 12
 
 
