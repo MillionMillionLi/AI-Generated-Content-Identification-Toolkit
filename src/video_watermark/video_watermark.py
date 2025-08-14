@@ -21,7 +21,8 @@ class VideoWatermark:
     def __init__(
         self, 
         cache_dir: str = "/fs-computility/wangxuhong/limeilin/.cache/huggingface/hub",
-        device: Optional[str] = None
+        device: Optional[str] = None,
+        config: Optional[Dict] = None
     ):
         """
         初始化视频水印工具
@@ -29,9 +30,13 @@ class VideoWatermark:
         Args:
             cache_dir: HuggingFace模型缓存目录
             device: 计算设备 ('cuda', 'cpu', 或None自动选择)
+            config: 配置字典，可包含VideoSeal等参数
         """
         self.cache_dir = cache_dir
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # 保存配置
+        self.config = config or {}
         
         # 设置日志
         self.logger = logging.getLogger(__name__)
@@ -234,7 +239,8 @@ class VideoWatermark:
     def extract_watermark(
         self,
         video_path: str,
-        max_frames: Optional[int] = None
+        max_frames: Optional[int] = None,
+        chunk_size: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         从视频中提取水印
@@ -242,6 +248,7 @@ class VideoWatermark:
         Args:
             video_path: 带水印的视频文件路径
             max_frames: 最大处理帧数限制
+            chunk_size: 分块大小，如果None则从配置读取
             
         Returns:
             Dict[str, Any]: 提取结果，包含detected、message、confidence等字段
@@ -264,9 +271,16 @@ class VideoWatermark:
             wrapper = self._ensure_watermark_wrapper()
             
             with PerformanceTimer("水印检测", self.logger):
+                # 从配置获取chunk_size，如果没有则使用参数或默认值
+                if chunk_size is None:
+                    videoseal_config = self.config.get('videoseal', {})
+                    watermark_params = videoseal_config.get('watermark_params', {})
+                    chunk_size = watermark_params.get('chunk_size', 16)
+                
                 result = wrapper.extract_watermark(
                     watermarked_video=video_tensor,
-                    is_video=True
+                    is_video=True,
+                    chunk_size=chunk_size
                 )
             
             # 添加额外信息

@@ -211,7 +211,8 @@ class VideoSealWrapper:
     def extract_watermark(
         self,
         watermarked_video: torch.Tensor,
-        is_video: bool = True
+        is_video: bool = True,
+        chunk_size: int = 16
     ) -> Dict[str, Any]:
         """
         从带水印的视频中提取水印
@@ -232,24 +233,59 @@ class VideoSealWrapper:
         
         try:
             with torch.no_grad():
-                # 使用VideoSeal检测水印
-                outputs = self.model.detect(watermarked_video, is_video=is_video)
+                # 实现分块处理逻辑，对齐inference_streaming.py
+                num_frames = watermarked_video.shape[0]
                 
-                # 获取预测结果
-                preds = outputs["preds"]
-                
-                # 处理预测结果
-                # preds形状通常是 (batch, num_bits)，取第一个batch
-                if len(preds.shape) > 1:
-                    bits_pred = preds[0, 1:]  # 排除第一个bit（可能用于检测）
+                if num_frames <= chunk_size:
+                    # 如果帧数不足chunk_size，直接处理
+                    outputs = self.model.detect(watermarked_video, is_video=is_video)
+                    preds = outputs["preds"]
+                    
+                    # 处理预测结果，排除第一个bit（可能用于检测）
+                    if len(preds.shape) > 1:
+                        bits_pred = preds[0, 1:]
+                    else:
+                        bits_pred = preds[1:]
                 else:
-                    bits_pred = preds[1:]  # 排除第一个bit
+                    # 分块处理，与inference_streaming.py对齐
+                    self.logger.info(f"使用分块处理: {num_frames}帧，chunk_size={chunk_size}")
+                    
+                    soft_msgs = []
+                    num_chunks = (num_frames + chunk_size - 1) // chunk_size  # 向上取整
+                    
+                    for i in range(0, num_frames, chunk_size):
+                        end_idx = min(i + chunk_size, num_frames)
+                        chunk = watermarked_video[i:end_idx]
+                        
+                        # 对每个chunk进行检测（完全对齐detect_video_clip函数）
+                        chunk_outputs = self.model.detect(chunk, is_video=is_video)
+                        chunk_preds = chunk_outputs["preds"]
+                        
+                        # 排除第一个bit（完全对齐inference_streaming.py）
+                        output_bits = chunk_preds[:, 1:]  # 保持batch维度，形状类似[frames_in_chunk, 255]
+                        
+                        soft_msgs.append(output_bits)
+                    
+                    # 拼接所有chunk的结果并取平均（关键步骤）
+                    if soft_msgs:
+                        soft_msgs_tensor = torch.cat(soft_msgs, dim=0)
+                        bits_pred = soft_msgs_tensor.mean(dim=0)  # 跨chunk平均，这是提高准确率的关键
+                        self.logger.info(f"分块处理完成: {len(soft_msgs)}个chunk，平均后bits形状: {bits_pred.shape}")
+                    else:
+                        # 备用处理
+                        outputs = self.model.detect(watermarked_video, is_video=is_video)
+                        preds = outputs["preds"]
+                        if len(preds.shape) > 1:
+                            bits_pred = preds[0, 1:]
+                        else:
+                            bits_pred = preds[1:]
                 
                 # 计算置信度（软预测的平均值）
                 confidence = torch.mean(torch.abs(bits_pred - 0.5)).item() * 2  # 转换到[0,1]范围
                 
                 # 判断是否检测到水印（基于置信度阈值）
-                detection_threshold = 0.1  # 可调整的阈值
+                # 参考inference_streaming.py，使用更宽松的阈值或基于bit准确率
+                detection_threshold = 0.05  # 降低阈值，因为分块平均后置信度计算更准确
                 detected = confidence > detection_threshold
                 
                 # 将bits转换为消息字符串
@@ -369,11 +405,50 @@ if __name__ == "__main__":
         if len(sys.argv) > 1 and sys.argv[1] == "test":
             print("\n开始水印测试...")
             
-            # 创建测试视频tensor
-            test_video = torch.rand(16, 3, 256, 256)  # 16帧，3通道，256x256
-            test_message = "test_videoseal"
+            # 创建测试视频tensor（增加帧数以测试分块处理）
+            test_video = torch.rand(32, 3, 256, 256)  # 32帧，3通道，256x256
             
             print(f"测试视频形状: {test_video.shape}")
+            
+            # 测试1：使用随机bit消息（对齐inference_streaming.py）
+            print("\n=== 测试1：随机bit消息 ===")
+            wrapper._load_model()
+            random_bits = wrapper.model.get_random_msg()
+            print(f"随机bits形状: {random_bits.shape}")
+            
+            # 使用VideoSeal原生的embed/detect方式
+            with torch.no_grad():
+                outputs = wrapper.model.embed(test_video, msgs=random_bits, is_video=True, lowres_attenuation=True)
+                watermarked_tensor = outputs["imgs_w"]
+                
+                # 测试A：不分块处理（原始方式）
+                print("\n-- 测试A：不分块处理 --")
+                extract_result_no_chunk = wrapper.extract_watermark(watermarked_tensor, chunk_size=999)  # 大于帧数
+                original_bits = random_bits[0, 1:]
+                extracted_bits_no_chunk = torch.tensor(extract_result_no_chunk['raw_preds'])[:255]
+                bit_acc_no_chunk = wrapper.calculate_bit_accuracy(original_bits, extracted_bits_no_chunk) * 100
+                
+                print(f"  检测结果: {extract_result_no_chunk['detected']}")
+                print(f"  置信度: {extract_result_no_chunk['confidence']:.3f}")
+                print(f"  Bit准确率: {bit_acc_no_chunk:.1f}%")
+                
+                # 测试B：分块处理（优化方式）
+                print("\n-- 测试B：分块处理(chunk_size=16) --")
+                extract_result_chunk = wrapper.extract_watermark(watermarked_tensor, chunk_size=16)
+                extracted_bits_chunk = torch.tensor(extract_result_chunk['raw_preds'])[:255]
+                bit_acc_chunk = wrapper.calculate_bit_accuracy(original_bits, extracted_bits_chunk) * 100
+                
+                print(f"  检测结果: {extract_result_chunk['detected']}")
+                print(f"  置信度: {extract_result_chunk['confidence']:.3f}")
+                print(f"  Bit准确率: {bit_acc_chunk:.1f}%")
+                
+                print(f"\n📊 对比结果:")
+                print(f"  置信度提升: {extract_result_chunk['confidence'] - extract_result_no_chunk['confidence']:.3f}")
+                print(f"  准确率提升: {bit_acc_chunk - bit_acc_no_chunk:.1f}%")
+            
+            # 测试2：字符串消息
+            print("\n=== 测试2：字符串消息 ===")
+            test_message = "test_videoseal"
             print(f"测试消息: '{test_message}'")
             
             # 嵌入水印

@@ -38,7 +38,8 @@ videoseal:
   watermark_params:
     lowres_attenuation: true   # 低分辨率衰减
     is_video: true             # 视频模式
-    detection_threshold: 0.1   # 检测置信度阈值
+    detection_threshold: 0.05  # 检测置信度阈值（降低以配合分块处理）
+    chunk_size: 16             # 视频分块大小（对齐inference_streaming.py）
   
   # 可选覆盖参数
   override:

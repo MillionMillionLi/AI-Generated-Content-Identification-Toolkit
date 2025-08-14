@@ -59,7 +59,7 @@ def test_model_download_and_cache():
     
     try:
         with PerformanceTimer("模型管理器初始化"):
-            watermark_tool = VideoWatermark(cache_dir=cache_dir)
+            watermark_tool = VideoWatermark(cache_dir=cache_dir, config=config)
         
         # 显示系统信息
         print("\n📊 系统信息:")
@@ -294,7 +294,7 @@ def test_existing_video_watermark(watermark_tool):
         return []
     
     try:
-        test_messages = ["existing_video_test", "batch_process_demo"]
+        test_messages = ["111111111111111111111111111111", "batch_process_demo"]
         results = []
         
         for i, message in enumerate(test_messages):
@@ -429,11 +429,11 @@ def main():
             print("❌ 模型管理测试失败，无法继续")
             return
         
-        # # 测试2：文生视频功能
-        # generation_results = test_text_to_video_generation(watermark_tool, config)
+        # 测试2：文生视频功能
+        generation_results = test_text_to_video_generation(watermark_tool, config)
         
-        # # 测试3：完整流程测试
-        # integration_results = test_video_watermark_integration(watermark_tool, config)
+        # 测试3：完整流程测试
+        integration_results = test_video_watermark_integration(watermark_tool, config)
         
         # 测试4：现有视频水印
         existing_results = test_existing_video_watermark(watermark_tool)
