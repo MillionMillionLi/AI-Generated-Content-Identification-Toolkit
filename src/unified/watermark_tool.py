@@ -5,8 +5,8 @@
 from typing import Dict, Any, Optional, Union
 from PIL import Image
 
-from ..text_watermark.credid_watermark import CredIDWatermark
-from ..image_watermark.image_watermark import ImageWatermark
+from src.text_watermark.credid_watermark import CredIDWatermark
+from src.image_watermark.image_watermark import ImageWatermark
 
 
 class WatermarkTool:
@@ -20,7 +20,8 @@ class WatermarkTool:
             config_path: 配置文件路径
         """
         self.config_path = config_path
-        self.text_watermark = CredIDWatermark(config_path)
+        # 文本水印当前实现期望直接传入配置字典，这里使用空配置以启用默认参数
+        self.text_watermark = CredIDWatermark({})
         self.image_watermark = ImageWatermark(config_path)
     
     # 文本水印接口
@@ -77,7 +78,7 @@ class WatermarkTool:
         """获取支持的算法列表"""
         return {
             'text': ['credid'],  # TODO: 添加更多文本算法
-            'image': ['prc', 'stable_signature']  # 新增PRC算法支持
+            'image': ['prc', 'videoseal']
         }
     
     def set_algorithm(self, modality: str, algorithm: str):

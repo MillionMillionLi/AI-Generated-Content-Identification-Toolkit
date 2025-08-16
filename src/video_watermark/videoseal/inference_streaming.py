@@ -27,6 +27,7 @@ def embed_video_clip(
     outputs = model.embed(
         clip_tensor, msgs=msgs, is_video=True, lowres_attenuation=True
     )
+    
     processed_clip = outputs["imgs_w"]
     processed_clip = (processed_clip * 255.0).byte().permute(0, 2, 3, 1).numpy()
     return processed_clip

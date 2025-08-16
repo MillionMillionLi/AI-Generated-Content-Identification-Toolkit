@@ -7,7 +7,9 @@ import yaml
 from PIL import Image
 from typing import Dict, Any, Optional, Union
 import os
-from .prc_watermark import PRCWatermark
+from src.image_watermark.prc_watermark import PRCWatermark
+from src.image_watermark.videoseal_image_watermark import VideoSealImageWatermark
+from src.utils.model_manager import get_global_manager
 
 
 class ImageWatermark:
@@ -22,7 +24,9 @@ class ImageWatermark:
         """
         self.config = self._load_config(config_path)
         self.algorithm = self.config.get('algorithm', 'prc')
-        self._setup_model()
+        # 延迟初始化具体算法处理器，避免无关依赖在构造时被加载
+        self.watermark_processor = None
+        self._initialized_algorithm = None
     
     def _load_config(self, config_path: Optional[str]) -> Dict[str, Any]:
         """加载配置文件"""
@@ -32,10 +36,14 @@ class ImageWatermark:
                 'algorithm': 'prc',
                 'watermark_key': 'default',
                 'model_name': 'stabilityai/stable-diffusion-2-1-base',
+                'resolution': 512,
+                'num_inference_steps': 50,
                 'false_positive_rate': 1e-5,
                 'prc_t': 3,
                 'n': 4 * 64 * 64,
-                'keys_dir': 'keys'
+                'keys_dir': 'keys',
+                'lowres_attenuation': True,
+                'device': None
             }
         
         with open(config_path, 'r', encoding='utf-8') as f:
@@ -55,10 +63,24 @@ class ImageWatermark:
                 model_id=self.config.get('model_name', 'stabilityai/stable-diffusion-2-1-base'),
                 keys_dir=self.config.get('keys_dir', 'keys')
             )
+        elif self.algorithm == 'videoseal':
+            # 初始化VideoSeal图像水印处理器
+            self.watermark_processor = VideoSealImageWatermark(
+                device=self.config.get('device'),
+                lowres_attenuation=self.config.get('lowres_attenuation', True)
+            )
         else:
             # 其他算法的占位符
             self.watermark_processor = None
             print(f"Algorithm {self.algorithm} not implemented yet")
+
+        # 记录已初始化的算法类型
+        self._initialized_algorithm = self.algorithm
+
+    def _ensure_model(self):
+        """确保对应算法的处理器已初始化"""
+        if self.watermark_processor is None or self._initialized_algorithm != self.algorithm:
+            self._setup_model()
     
     def embed_watermark(self, image_input: Union[str, Image.Image], 
                        watermark_key: str = None, 
@@ -77,6 +99,9 @@ class ImageWatermark:
         Returns:
             含水印的图像
         """
+        # 确保模型按当前算法已就绪
+        self._ensure_model()
+
         if self.algorithm == 'prc':
             if self.watermark_processor is None:
                 raise RuntimeError("PRC watermark processor not initialized")
@@ -92,6 +117,25 @@ class ImageWatermark:
                 key_id=key_id,
                 **kwargs
             )
+        elif self.algorithm == 'videoseal':
+            if self.watermark_processor is None:
+                raise RuntimeError("VideoSeal watermark processor not initialized")
+            if message is None or len(message) == 0:
+                raise ValueError("VideoSeal algorithm requires 'message' to embed")
+            # 支持两种路径：1) 直接对输入图像嵌入；2) 无图像则用SD生成再嵌入
+            if image_input is None:
+                if prompt is None:
+                    raise ValueError("VideoSeal requires an input image or a text prompt to generate one")
+                # 使用之前图像使用的 Stable Diffusion 模型生成图像
+                manager = get_global_manager()
+                pipe = manager.load_diffusion_model(self.config.get('model_name', 'stabilityai/stable-diffusion-2-1-base'))
+                res = int(self.config.get('resolution', 512))
+                steps = int(self.config.get('num_inference_steps', 50))
+                gen = pipe(prompt, num_inference_steps=steps, height=res, width=res)
+                pil_img = gen.images[0]
+                return self.watermark_processor.embed(pil_img, message=message, **kwargs)
+            else:
+                return self.watermark_processor.embed(image_input, message=message, **kwargs)
         else:
             # 其他算法的占位符实现
             print(f"Embedding watermark in image using {self.algorithm}")
@@ -116,6 +160,9 @@ class ImageWatermark:
         Returns:
             提取结果，包含是否检测到水印等信息
         """
+        # 确保模型按当前算法已就绪
+        self._ensure_model()
+
         if self.algorithm == 'prc':
             if self.watermark_processor is None:
                 raise RuntimeError("PRC watermark processor not initialized")
@@ -127,6 +174,12 @@ class ImageWatermark:
                 key_id=key_id,
                 **kwargs
             )
+        elif self.algorithm == 'videoseal':
+            if self.watermark_processor is None:
+                raise RuntimeError("VideoSeal watermark processor not initialized")
+            if image_input is None:
+                raise ValueError("VideoSeal requires an input image to extract watermark")
+            return self.watermark_processor.extract(image_input, **kwargs)
         else:
             # 其他算法的占位符实现
             print(f"Extracting watermark from image using {self.algorithm}")

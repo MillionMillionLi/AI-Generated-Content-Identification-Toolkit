@@ -1,6 +1,7 @@
 """
 HunyuanVideo模型下载和缓存管理器
 自动处理模型的下载、缓存和加载
+支持HuggingFace镜像站点
 """
 
 import os
@@ -29,20 +30,31 @@ class ModelManager:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
-        # HunyuanVideo模型配置
-        self.hunyuan_repo = "tencent/HunyuanVideo"
-        self.hunyuan_model_dir = self.cache_dir / "models--tencent--HunyuanVideo"
+        # HunyuanVideo模型配置（支持多个仓库源）
+        self.hunyuan_repos = [
+            "hunyuanvideo-community/HunyuanVideo",  # 社区diffusers兼容版本
+            "tencent/HunyuanVideo"  # 官方版本
+        ]
+        self.hunyuan_repo = self.hunyuan_repos[0]  # 默认使用社区版本
+        self.hunyuan_model_dir = self.cache_dir / "models--hunyuanvideo-community--HunyuanVideo"
         
         # 设置日志
         self.logger = logging.getLogger(__name__)
         
+        # 设置镜像站点环境变量（如果未设置）
+        if not os.environ.get('HF_ENDPOINT'):
+            os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+            self.logger.info("设置HF_ENDPOINT为镜像站点: https://hf-mirror.com")
+        
     def _check_local_model_exists(self) -> bool:
         """检查本地是否存在HunyuanVideo模型"""
-        # 检查多个可能的路径格式
+        # 检查多个可能的路径格式（包括社区版本和官方版本）
         possible_paths = [
-            self.hunyuan_model_dir,
+            self.cache_dir / "models--hunyuanvideo-community--HunyuanVideo",
+            self.cache_dir / "models--tencent--HunyuanVideo",
             self.cache_dir / "tencent--HunyuanVideo",
-            self.cache_dir / "hub" / "models--tencent--HunyuanVideo"
+            self.cache_dir / "hub" / "models--tencent--HunyuanVideo",
+            self.cache_dir / "hub" / "models--hunyuanvideo-community--HunyuanVideo"
         ]
         
         for path in possible_paths:
@@ -105,24 +117,32 @@ class ModelManager:
                 "huggingface_hub not available. Please install with: pip install huggingface_hub"
             )
         
-        self.logger.info(f"开始下载HunyuanVideo模型到: {self.cache_dir}")
+        self.logger.info(f"开始从镜像站点下载HunyuanVideo模型到: {self.cache_dir}")
+        self.logger.info(f"使用HF_ENDPOINT: {os.environ.get('HF_ENDPOINT', 'default')}")
         
-        try:
-            # 使用snapshot_download下载整个仓库
-            downloaded_path = snapshot_download(
-                repo_id=self.hunyuan_repo,
-                cache_dir=str(self.cache_dir),
-                resume_download=True,  # 支持断点续传
-                local_files_only=False,
-                # force_download=False,  # 不强制重新下载
-            )
-            
-            self.logger.info(f"HunyuanVideo模型下载完成: {downloaded_path}")
-            return downloaded_path
-            
-        except Exception as e:
-            self.logger.error(f"下载HunyuanVideo模型失败: {e}")
-            raise RuntimeError(f"Failed to download HunyuanVideo model: {e}")
+        # 尝试多个仓库源
+        for repo_id in self.hunyuan_repos:
+            try:
+                self.logger.info(f"尝试下载仓库: {repo_id}")
+                downloaded_path = snapshot_download(
+                    repo_id=repo_id,
+                    cache_dir=str(self.cache_dir),
+                    resume_download=True,  # 支持断点续传
+                    local_files_only=False,
+                    # force_download=False,  # 不强制重新下载
+                )
+                
+                self.logger.info(f"HunyuanVideo模型下载完成: {downloaded_path}")
+                # 更新当前使用的仓库
+                self.hunyuan_repo = repo_id
+                return downloaded_path
+                
+            except Exception as e:
+                self.logger.warning(f"从 {repo_id} 下载失败: {e}")
+                continue
+        
+        # 如果所有仓库都失败
+        raise RuntimeError("所有HunyuanVideo仓库都下载失败")
     
     def get_model_path(self) -> str:
         """

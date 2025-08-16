@@ -180,3 +180,66 @@ When extending the unified interface:
 
 - 用中文回答: 这是一个提醒，表示在处理项目或文档时使用中文进行交流和注释
 - **PRC水印已完成**: 系统已经成功实现并通过所有测试，可以投入使用
+
+## 变更摘要（2025-08）
+
+### 背景
+- 为兼容 Hunyuan 视频模型，环境升级至 `diffusers==0.34`。该版本与现有 PRC 图像水印路径存在不兼容风险（自定义管线模块注册差异）。
+
+### 新增：VideoSeal 作为图像水印第二后端
+- 在 `src/image_watermark/` 新增 `videoseal_image_watermark.py`，将单张图像视作单帧视频，复用 `src/video_watermark/videoseal_wrapper.py` 的 `embed/detect`。
+- `src/image_watermark/image_watermark.py` 增加 `algorithm: videoseal` 分支，保持统一接口：
+  - 直接对输入图像嵌入/提取
+  - 或使用 Stable Diffusion 先生成图像，再用 VideoSeal 嵌入
+- `src/unified/watermark_tool.py` 的 `get_supported_algorithms()['image']` 增加 `videoseal`。
+- 检测增强：`VideoSealImageWatermark.extract(..., replicate=N, chunk_size=N)` 支持单图复制为多帧均值，提高读出稳定性与置信度。
+
+### 懒加载与离线加载
+- 懒加载：`ImageWatermark` 改为按需初始化具体后端，避免在构造时无关依赖（如 PRC/SD 管线）被加载。
+- 离线加载（Stable Diffusion）：`src/utils/model_manager.py` 强制离线并解析本地 HF Hub 目录：
+  - 优先解析 `.../huggingface/hub/models--stabilityai--stable-diffusion-2-1-base`（与 PRC 路径一致）
+  - `from_pretrained(local_files_only=True)`，不触网
+
+### 文本水印离线改造
+- `test_complex_messages_real.py`：
+  - 强制 `TRANSFORMERS_OFFLINE/HF_HUB_OFFLINE`
+  - `AutoTokenizer/AutoModelForCausalLM.from_pretrained(local_files_only=True, cache_dir=...)`
+  - 自动探测本地缓存目录，或通过配置 `hf_cache_dir` 显式指定
+
+### 导入与测试可用性
+- 统一 `src.*` 绝对导入，确保以项目根运行脚本时稳定。
+- `tests/conftest.py` 将 `src/` 注入 `sys.path`，保证测试环境下 `unified.*` 可导入。
+- 新增单测与演示：
+  - `tests/test_image_videoseal.py`（最小验证）
+  - 根级 `test_image_videoseal_root.py`（可 `python` 直接运行）：
+    - `--mode pil`：现有图像嵌入/提取
+    - `--mode gen`：生成→嵌入→提取（完全离线，需本地 SD 权重）
+
+### 使用指引（VideoSeal 图像水印）
+- 配置（示例）：
+```yaml
+image_watermark:
+  algorithm: videoseal
+  model_name: stabilityai/stable-diffusion-2-1-base
+  resolution: 512
+  num_inference_steps: 30
+  lowres_attenuation: true
+  device: cuda
+```
+- 代码：
+```python
+from src.unified.watermark_tool import WatermarkTool
+tool = WatermarkTool()
+tool.set_algorithm('image', 'videoseal')
+img = tool.generate_image_with_watermark(prompt='a cat', message='hello_videoseal')
+res = tool.extract_image_watermark(img, replicate=16, chunk_size=16)
+```
+- 命令行演示：
+```bash
+python test_image_videoseal_root.py --mode pil  --device cuda
+python test_image_videoseal_root.py --mode gen  --device cuda --resolution 512 --steps 30
+```
+
+### 提升检测置信度建议
+- 生成侧：提高 `resolution` 与 `num_inference_steps`；简化 prompt；使用 GPU。
+- 检测侧：`replicate` 设置为 8~32 并与 `chunk_size` 对齐，用多帧均值稳定读出。

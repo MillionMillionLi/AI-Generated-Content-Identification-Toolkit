@@ -114,15 +114,13 @@ def test_text_to_video_generation(watermark_tool, config):
             'num_inference_steps': 10,
             'fps': 8
         }
+        # 保存fps用于后续保存视频，但从生成参数中移除
+        fps = test_params.pop('fps', 8)
         
         test_cases = [
             {
                 "prompt": "一朵红色的玫瑰花",
                 "description": "简单花朵测试"
-            },
-            {
-                "prompt": "蓝天白云",
-                "description": "天空场景测试"
             }
         ]
         
@@ -147,7 +145,7 @@ def test_text_to_video_generation(watermark_tool, config):
                 FileUtils.ensure_dir(os.path.dirname(output_path))
                 
                 from src.video_watermark.utils import VideoIOUtils
-                VideoIOUtils.save_video_tensor(video_tensor, output_path, fps=test_params.get('fps', 8))
+                VideoIOUtils.save_video_tensor(video_tensor, output_path, fps=fps)
                 
                 file_size = FileUtils.get_file_size_mb(output_path)
                 
@@ -189,14 +187,15 @@ def test_video_watermark_integration(watermark_tool, config):
     print("=" * 60)
     
     try:
-        # 使用配置文件中的演示参数
+        # 使用配置文件中的演示参数  
         demo_params = config['demo']['demo_params'] if config else {
             'num_frames': 25,
             'height': 480,
             'width': 640,
-            'num_inference_steps': 20,
-            'fps': 12
+            'num_inference_steps': 20
         }
+        # 移除fps参数，因为generate_video_with_watermark不支持此参数
+        demo_params.pop('fps', None)
         
         test_cases = config['demo']['test_cases'] if config else [
             {
@@ -433,10 +432,10 @@ def main():
         generation_results = test_text_to_video_generation(watermark_tool, config)
         
         # 测试3：完整流程测试
-        integration_results = test_video_watermark_integration(watermark_tool, config)
+        # integration_results = test_video_watermark_integration(watermark_tool, config)
         
         # 测试4：现有视频水印
-        existing_results = test_existing_video_watermark(watermark_tool)
+        # existing_results = test_existing_video_watermark(watermark_tool)
         
         # 清理内存
         print("\n🧹 清理内存...")

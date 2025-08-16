@@ -17,6 +17,34 @@ sys.path.append(os.path.dirname(__file__))
 # 导入水印相关模块
 from src.text_watermark.credid_watermark import CredIDWatermark
 
+# 强制离线模式，避免联网
+os.environ.setdefault('TRANSFORMERS_OFFLINE', '1')
+os.environ.setdefault('HF_HUB_OFFLINE', '1')
+
+
+def _candidate_cache_dirs() -> list:
+    """返回可能的本地缓存目录列表（按优先级）。"""
+    candidates = []
+    # 1) 配置/环境指定
+    if os.getenv('HF_HOME'):
+        candidates.append(os.path.join(os.getenv('HF_HOME'), 'hub'))
+    if os.getenv('HF_HUB_CACHE'):
+        candidates.append(os.getenv('HF_HUB_CACHE'))
+    # 2) 本项目内 models 目录
+    candidates.append(os.path.join(os.path.dirname(__file__), 'models'))
+    # 3) 项目上层常见缓存路径
+    candidates.append('/fs-computility/wangxuhong/limeilin/.cache/huggingface/hub')
+    # 4) 用户主页默认缓存
+    candidates.append(os.path.expanduser('~/.cache/huggingface/hub'))
+    # 去重并保留顺序
+    seen = set()
+    ordered = []
+    for p in candidates:
+        if p and p not in seen:
+            seen.add(p)
+            ordered.append(p)
+    return ordered
+
 def load_test_config():
     """加载测试配置"""
     with open('config/text_config.yaml', 'r', encoding='utf-8') as f:
@@ -43,12 +71,38 @@ def load_model_and_tokenizer(config):
     print(f"🏗️  加载模型: {model_name}")
     
     start_time = time.time()
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        device_map="auto",
-        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
-    )
+    cache_dir = config.get('hf_cache_dir')
+    if not cache_dir:
+        # 尝试自动发现可用缓存目录
+        for c in _candidate_cache_dirs():
+            if os.path.isdir(c):
+                cache_dir = c
+                break
+    # 允许 local_files_only，完全离线
+    local_only = True
+
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            cache_dir=cache_dir,
+            local_files_only=local_only,
+            trust_remote_code=True,
+            use_fast=True
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            cache_dir=cache_dir,
+            local_files_only=local_only,
+            trust_remote_code=True,
+            device_map="auto",
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+        )
+    except Exception as e:
+        tried = [f"model_name='{model_name}'", f"cache_dir='{cache_dir}'"]
+        raise RuntimeError(
+            "离线加载模型失败。请确认模型已存在于本地缓存，或在config中设置 'hf_cache_dir' 指向本地权重目录。"\
+            f" 尝试参数: {', '.join(tried)}\n原始错误: {e}"
+        )
     
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token

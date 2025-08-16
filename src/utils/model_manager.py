@@ -220,13 +220,57 @@ class ModelManager:
         logger.info(f"加载扩散模型: {model_name}")
         
         try:
+            # 强制离线模式，禁止联网下载
+            os.environ['TRANSFORMERS_OFFLINE'] = '1'
+            os.environ['DIFFUSERS_OFFLINE'] = '1'
+            os.environ['HF_HUB_OFFLINE'] = '1'
+
+            def _candidate_hub_dirs() -> list:
+                candidates = []
+                if os.getenv('HF_HOME'):
+                    candidates.append(Path(os.getenv('HF_HOME')) / 'hub')
+                if os.getenv('HF_HUB_CACHE'):
+                    candidates.append(Path(os.getenv('HF_HUB_CACHE')))
+                # 项目内 models 目录
+                candidates.append(Path(__file__).resolve().parents[3] / 'models')
+                # 用户默认缓存
+                candidates.append(Path('/fs-computility/wangxuhong/limeilin/.cache/huggingface/hub'))
+                candidates.append(Path.home() / '.cache' / 'huggingface' / 'hub')
+                # 去重并保序
+                ordered = []
+                seen = set()
+                for p in candidates:
+                    if p and str(p) not in seen:
+                        seen.add(str(p))
+                        ordered.append(p)
+                return ordered
+
+            def _resolve_local_model_path(model_name_str: str) -> Path:
+                # 1) 直接是本地目录
+                p = Path(model_name_str)
+                if p.exists():
+                    return p
+                # 2) 在候选hub缓存中查找 models--org--repo 结构
+                if '/' in model_name_str:
+                    hub_subdir = f"models--{model_name_str.replace('/', '--')}"
+                    for base in _candidate_hub_dirs():
+                        hub_dir = base / hub_subdir
+                        if hub_dir.exists():
+                            # 关键：与PRC一致，传入 hub_dir（models--org--repo），让from_pretrained离线解析refs
+                            return hub_dir
+                # 3) 回退原始字符串
+                return Path(model_name_str)
+
+            model_path = _resolve_local_model_path(model_name)
+            
             # 加载pipeline
             pipeline = StableDiffusionPipeline.from_pretrained(
-                model_name,
+                str(model_path),
                 cache_dir=self.cache_dir,
                 torch_dtype=self.torch_dtype,
                 safety_checker=None,  # 关闭安全检查以节省内存
-                requires_safety_checker=False
+                requires_safety_checker=False,
+                local_files_only=True
             )
             
             # 设置调度器

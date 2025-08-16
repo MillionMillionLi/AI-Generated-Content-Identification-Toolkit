@@ -47,7 +47,7 @@ class HunyuanVideoGenerator:
                 "Install with: pip install diffusers torch torchvision"
             )
     
-    def _load_pipeline(self, allow_download: bool = False):
+    def _load_pipeline(self, allow_download: bool = True):
         """延迟加载HunyuanVideo管道"""
         if self.pipeline is not None:
             return
@@ -55,15 +55,61 @@ class HunyuanVideoGenerator:
         self.logger.info("正在加载HunyuanVideo管道...")
         
         try:
-            # 确保模型已下载（默认不允许自动下载）
-            model_path = self.model_manager.ensure_hunyuan_model(allow_download=allow_download)
+            # 设置镜像环境变量
+            original_endpoint = os.environ.get('HF_ENDPOINT')
+            if not original_endpoint:
+                os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+                self.logger.info("设置HF_ENDPOINT为镜像站点: https://hf-mirror.com")
             
-            # 加载管道
-            self.pipeline = HunyuanVideoPipeline.from_pretrained(
-                model_path,
-                torch_dtype=torch.bfloat16 if self.device == 'cuda' else torch.float32,
-                device_map="auto" if self.device == 'cuda' else None
-            )
+            # 尝试多个仓库源和网络配置
+            repo_candidates = [
+                "hunyuanvideo-community/HunyuanVideo",  # 社区diffusers兼容版本
+                "tencent/HunyuanVideo"  # 官方版本（回退）
+            ]
+            
+            # 网络配置候选（镜像 -> 直连）
+            network_configs = [
+                {'HF_ENDPOINT': 'https://hf-mirror.com', 'desc': '镜像站点'},
+                {'HF_ENDPOINT': None, 'desc': 'HuggingFace直连'}
+            ]
+            
+            pipeline_loaded = False
+            for network_config in network_configs:
+                # 设置网络环境
+                if network_config['HF_ENDPOINT']:
+                    os.environ['HF_ENDPOINT'] = network_config['HF_ENDPOINT']
+                else:
+                    os.environ.pop('HF_ENDPOINT', None)
+                
+                self.logger.info(f"尝试网络配置: {network_config['desc']}")
+                
+                for repo_id in repo_candidates:
+                    try:
+                        self.logger.info(f"尝试从仓库加载: {repo_id}")
+                        self.pipeline = HunyuanVideoPipeline.from_pretrained(
+                            repo_id,
+                            torch_dtype=torch.bfloat16 if self.device == 'cuda' else torch.float32,
+                            device_map="balanced" if self.device == 'cuda' else None,
+                            cache_dir=str(self.model_manager.cache_dir)
+                        )
+                        self.logger.info(f"成功从 {repo_id} 加载HunyuanVideo管道 (使用{network_config['desc']})")
+                        pipeline_loaded = True
+                        break
+                    except Exception as e:
+                        self.logger.warning(f"从 {repo_id} 加载失败 (使用{network_config['desc']}): {e}")
+                        continue
+                
+                if pipeline_loaded:
+                    break
+            
+            # 恢复原始环境变量
+            if original_endpoint:
+                os.environ['HF_ENDPOINT'] = original_endpoint
+            elif 'HF_ENDPOINT' in os.environ:
+                os.environ.pop('HF_ENDPOINT', None)
+            
+            if not pipeline_loaded:
+                raise RuntimeError("所有HunyuanVideo仓库和网络配置都加载失败")
             
             # 移动到指定设备
             if self.device == 'cpu':
@@ -111,7 +157,7 @@ class HunyuanVideoGenerator:
         Returns:
             torch.Tensor or str: 视频tensor或输出文件路径
         """
-        self._load_pipeline(allow_download=False)  # 默认不允许自动下载
+        self._load_pipeline(allow_download=True)  # 允许自动下载
         
         self.logger.info(f"开始生成视频: '{prompt[:50]}...'")
         self.logger.info(f"参数: {num_frames}帧, {height}x{width}, {num_inference_steps}步")
