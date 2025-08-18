@@ -7,9 +7,16 @@ import yaml
 from PIL import Image
 from typing import Dict, Any, Optional, Union
 import os
-from src.image_watermark.prc_watermark import PRCWatermark
-from src.image_watermark.videoseal_image_watermark import VideoSealImageWatermark
-from src.utils.model_manager import get_global_manager
+try:
+    # 相对导入（当作为包运行时）
+    from .prc_watermark import PRCWatermark
+    from .videoseal_image_watermark import VideoSealImageWatermark
+    from ..utils.model_manager import get_global_manager
+except ImportError:
+    # 绝对导入（当 src 在路径中时）
+    from image_watermark.prc_watermark import PRCWatermark
+    from image_watermark.videoseal_image_watermark import VideoSealImageWatermark
+    from utils.model_manager import get_global_manager
 
 
 class ImageWatermark:

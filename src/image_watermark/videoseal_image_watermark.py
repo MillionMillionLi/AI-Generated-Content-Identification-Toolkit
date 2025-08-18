@@ -8,7 +8,12 @@ import numpy as np
 from PIL import Image
 from typing import Union, Dict, Any, Optional
 
-from src.video_watermark.videoseal_wrapper import create_videoseal_wrapper
+try:
+    # 相对导入（当作为包运行时）
+    from ..video_watermark.videoseal_wrapper import create_videoseal_wrapper
+except ImportError:
+    # 绝对导入（当 src 在路径中时）
+    from video_watermark.videoseal_wrapper import create_videoseal_wrapper
 
 
 class VideoSealImageWatermark:
@@ -61,12 +66,12 @@ class VideoSealImageWatermark:
         )
         return self._to_pil(watermarked)
 
-    def extract(self, image_input: Union[str, Image.Image, torch.Tensor], *, chunk_size: int = 1, replicate: int = 1, **kwargs) -> Dict[str, Any]:
+    def extract(self, image_input: Union[str, Image.Image, torch.Tensor], *, chunk_size: int = 16, replicate: int = 32, **kwargs) -> Dict[str, Any]:
         """从图像中提取水印，返回检测结果字典
 
         Args:
-            chunk_size: 分块大小（传递给检测器）。对单帧图像通常无效，除非进行帧复制。
-            replicate: 将单帧图像重复为多帧以提高平均稳定性，例如 8/16。
+            chunk_size: 分块大小（传递给检测器），默认16平衡效率和精度
+            replicate: 将单帧图像重复为多帧以提高平均稳定性，默认32提升检测准确率
         """
         img_tensor = self._to_tensor(image_input)  # 1,C,H,W
         if replicate and replicate > 1:

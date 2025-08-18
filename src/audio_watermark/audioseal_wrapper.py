@@ -210,6 +210,27 @@ class AudioSealWrapper:
         
         return audio.to(self.device)
     
+    def _restore_original_shape(self, audio: torch.Tensor, original_shape: torch.Size) -> torch.Tensor:
+        """
+        将处理后的3D音频恢复为原始形状
+        
+        Args:
+            audio: 处理后的3D音频张量 (batch, channels, time)
+            original_shape: 原始输入的形状
+            
+        Returns:
+            torch.Tensor: 恢复为原始形状的音频张量
+        """
+        if len(original_shape) == 1:
+            # 原始是1D: (time,)
+            return audio.squeeze(0).squeeze(0)
+        elif len(original_shape) == 2:
+            # 原始是2D: (channels, time) 或 (batch, time)
+            return audio.squeeze(0)  # 移除batch维度，保留(channels, time)
+        else:
+            # 原始就是3D或更高维，保持不变
+            return audio
+
     def embed(self, audio: torch.Tensor, message: str, 
               input_sample_rate: int = None, alpha: float = 1.0) -> torch.Tensor:
         """
@@ -222,11 +243,14 @@ class AudioSealWrapper:
             alpha: 水印强度 (0.0-2.0, 默认1.0)
             
         Returns:
-            torch.Tensor: 带水印的音频张量
+            torch.Tensor: 带水印的音频张量，形状与输入相同
         """
         self._ensure_models()
         
         self.logger.info(f"嵌入水印消息: '{message}'")
+        
+        # 保存原始形状
+        original_shape = audio.shape
         
         # 预处理音频
         processed_audio = self._preprocess_audio(audio, input_sample_rate)
@@ -239,7 +263,7 @@ class AudioSealWrapper:
         if message not in self._embedded_messages:
             self._embedded_messages.append(message)
         
-        self.logger.debug(f"音频形状: {processed_audio.shape}, 消息位: {message_bits.shape}")
+        self.logger.debug(f"原始音频形状: {original_shape}, 处理后形状: {processed_audio.shape}, 消息位: {message_bits.shape}")
         
         # 嵌入水印
         try:
@@ -250,8 +274,11 @@ class AudioSealWrapper:
                 alpha=alpha
             )
             
-            self.logger.info(f"水印嵌入成功，输出形状: {watermarked_audio.shape}")
-            return watermarked_audio
+            # 恢复原始形状
+            restored_audio = self._restore_original_shape(watermarked_audio, original_shape)
+            
+            self.logger.info(f"水印嵌入成功，输出形状: {restored_audio.shape}")
+            return restored_audio
             
         except Exception as e:
             self.logger.error(f"水印嵌入失败: {e}")

@@ -11,8 +11,27 @@ import numpy as np
 import logging
 from pathlib import Path
 
-# 添加src路径以便导入
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+# 设置项目路径以便导入
+def setup_project_path():
+    """设置项目路径，确保可以导入 src 模块"""
+    current_file = Path(__file__).resolve()
+    
+    # 找到项目根目录（包含 src 目录的目录）
+    project_root = current_file.parent.parent  # tests -> project_root
+    src_dir = project_root / "src"
+    
+    if src_dir.exists():
+        src_path = str(src_dir)
+        if src_path not in sys.path:
+            sys.path.insert(0, src_path)
+        print(f"已添加 src 目录到路径: {src_path}")
+        return True
+    else:
+        print(f"错误: 找不到 src 目录在 {project_root}")
+        return False
+
+# 立即设置路径
+setup_project_path()
 
 try:
     from audio_watermark import (
@@ -313,7 +332,7 @@ class TestAudioWatermarkAdvanced:
         """测试对噪声的鲁棒性"""
         self.logger.info("测试噪声鲁棒性...")
         
-        from src.audio_watermark.utils import AudioProcessingUtils
+        from audio_watermark.utils import AudioProcessingUtils
         
         watermark_tool = create_audio_watermark()
         

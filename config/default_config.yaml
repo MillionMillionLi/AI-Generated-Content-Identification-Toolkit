@@ -3,28 +3,43 @@
 # 文本水印配置
 text_watermark:
   algorithm: "credid"  # 默认使用CredID算法
-  model_name: "bert-base-uncased"
+  model_name: "huggyllama/llama-7b"  # 使用测试验证的模型
+  mode: "lm"  # LM模式，质量更高
   max_length: 512
   temperature: 1.0
   top_p: 0.9
   
-  # CredID专用配置
+  # CredID专用配置（使用测试验证的最优参数）
   credid:
     watermark_key: "default_key"
     embedding_dim: 768
     threshold: 0.5
+    lm_params:
+      delta: 1.5  # 测试验证的最优参数
+      prefix_len: 10
+      message_len: 10
+    wm_params:
+      encode_ratio: 8
+      strategy: "vanilla"
 
 # 图像水印配置  
 image_watermark:
-  algorithm: "prc"  # 默认使用PRC算法
+  algorithm: "videoseal"  # 默认使用VideoSeal算法
   model_name: "stabilityai/stable-diffusion-2-1-base"
   resolution: 512
-  num_inference_steps: 50
+  num_inference_steps: 30
   guidance_scale: 7.5
   watermark_key: "default"
   keys_dir: "keys"
+  device: null  # 自动选择设备
+  lowres_attenuation: true
   
-  # PRC算法专用配置
+  # VideoSeal专用配置（使用优化的最优参数）
+  videoseal:
+    replicate: 32  # 优化后的参数，提高多帧平均检测稳定性和准确率
+    chunk_size: 16  # 分块大小，平衡处理效率和检测精度
+    
+  # PRC算法专用配置（备选）
   prc:
     n: 16384  # 4 * 64 * 64，PRC码字长度
     false_positive_rate: 0.00001  # 假阳性率
@@ -63,11 +78,32 @@ audio_watermark:
     alpha: 1.0  # 水印强度调节
     cache_dir: "~/.cache/audioseal"  # 模型缓存目录
 
+# 视频水印配置
+video_watermark:
+  generator: "hunyuan"  # 视频生成器：HunyuanVideo
+  watermark: "videoseal"  # 水印算法：VideoSeal
+  cache_dir: "/fs-computility/wangxuhong/limeilin/.cache/huggingface/hub"
+  device: null  # 自动选择设备
+  
+  # HunyuanVideo生成参数（使用测试验证的最优参数）
+  hunyuan:
+    num_frames: 49  # 帧数（建议4*k+1）
+    height: 720  # 默认分辨率
+    width: 1280
+    num_inference_steps: 30  # 推理步数
+    guidance_scale: 6.0  # 引导强度
+    
+  # VideoSeal水印参数
+  videoseal:
+    lowres_attenuation: true  # 低分辨率衰减
+    chunk_size: 16  # 分块大小，测试验证的最优参数
+
 # 输出配置
 output:
   text_output_dir: "outputs/text"
   image_output_dir: "outputs/images"
   audio_output_dir: "outputs/audio"
+  video_output_dir: "outputs/videos"  # 添加视频输出目录
   log_level: "INFO"
   save_intermediate: false
 
@@ -75,4 +111,5 @@ output:
 evaluation:
   metrics: ["psnr", "ssim", "lpips"]  # 图像质量评估
   text_metrics: ["perplexity", "bleu"]  # 文本质量评估
-  audio_metrics: ["snr", "mse", "correlation"]  # 音频质量评估 
+  audio_metrics: ["snr", "mse", "correlation"]  # 音频质量评估
+  video_metrics: ["psnr", "ssim", "frame_consistency"]  # 视频质量评估 

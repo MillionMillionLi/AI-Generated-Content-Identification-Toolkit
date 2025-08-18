@@ -106,60 +106,88 @@ class BarkGenerator:
         )
     
     def _setup_bark_cache_dir(self):
-        """设置Bark模型缓存目录"""
-        # 目标缓存目录
-        target_cache_dir = "/fs-computility/wangxuhong/limeilin/.cache/huggingface/models--suno--bark"
-        
-        # 设置环境变量让Bark使用指定的缓存目录
-        # Bark使用XDG_CACHE_HOME或HOME来确定缓存位置
+        """设置Bark模型缓存目录（离线优先，支持环境变量覆盖）"""
+        # 保存原始环境变量，便于恢复
         original_cache_home = os.environ.get('XDG_CACHE_HOME')
         original_home = os.environ.get('HOME')
-        
-        # 检查目标目录是否存在且有模型文件
-        if os.path.exists(target_cache_dir) and os.listdir(target_cache_dir):
-            # 如果用户指定的目录存在且有文件，创建符号链接
-            cache_base = "/fs-computility/wangxuhong/limeilin/.cache"
-            bark_cache_parent = os.path.join(cache_base, 'suno')
-            bark_cache_dir = os.path.join(bark_cache_parent, 'bark_v0')
-            
-            # 确保父目录存在
-            os.makedirs(bark_cache_parent, exist_ok=True)
-            
-            # 如果bark_v0不存在或不是指向我们目标目录的链接，创建链接
-            if not os.path.exists(bark_cache_dir):
+
+        # 项目缓存根目录（默认到用户项目路径）
+        cache_base = os.environ.get(
+            'XDG_CACHE_HOME',
+            '/fs-computility/wangxuhong/limeilin/.cache'
+        )
+
+        # 允许通过环境变量直接指定 Bark 模型目录（可指向 bark_v0 或 HF hub 的 models--suno--bark）
+        env_bark_dir = os.environ.get('BARK_CACHE_DIR')
+
+        # HF 缓存根目录
+        hf_home = os.environ.get(
+            'HF_HOME',
+            '/fs-computility/wangxuhong/limeilin/.cache/huggingface'
+        )
+
+        # 备选的本地 Bark 模型目录（按优先级）
+        candidate_targets = []
+        if env_bark_dir:
+            candidate_targets.append(env_bark_dir)
+        # 兼容新旧 HF Hub 目录结构
+        candidate_targets.append(os.path.join(hf_home, 'hub', 'models--suno--bark'))
+        candidate_targets.append(os.path.join(hf_home, 'models--suno--bark'))
+        # 直接使用项目缓存下的 bark_v0（若已被手动填充）
+        candidate_targets.append(os.path.join(cache_base, 'suno', 'bark_v0'))
+
+        # 选择第一个存在且非空的目录作为目标
+        target_cache_dir = None
+        for path in candidate_targets:
+            if os.path.exists(path) and os.listdir(path):
+                target_cache_dir = path
+                break
+
+        # 确保 bark_v0 最终位置存在于项目缓存，并指向目标（若目标为空则创建占位目录）
+        bark_cache_parent = os.path.join(cache_base, 'suno')
+        bark_cache_dir = os.path.join(bark_cache_parent, 'bark_v0')
+        os.makedirs(bark_cache_parent, exist_ok=True)
+
+        if target_cache_dir and os.path.exists(target_cache_dir):
+            if os.path.islink(bark_cache_dir) or os.path.exists(bark_cache_dir):
+                try:
+                    if os.path.islink(bark_cache_dir):
+                        link_target = os.readlink(bark_cache_dir)
+                        if link_target != target_cache_dir:
+                            os.unlink(bark_cache_dir)
+                            os.symlink(target_cache_dir, bark_cache_dir)
+                            self.logger.info(f"更新符号链接: {bark_cache_dir} -> {target_cache_dir}")
+                    else:
+                        # 目录已存在但非链接，若为空可替换为链接
+                        if not os.listdir(bark_cache_dir):
+                            os.rmdir(bark_cache_dir)
+                            os.symlink(target_cache_dir, bark_cache_dir)
+                            self.logger.info(f"创建符号链接: {bark_cache_dir} -> {target_cache_dir}")
+                except Exception:
+                    # 如有权限或占用问题，忽略并继续使用现有目录
+                    pass
+            else:
                 os.symlink(target_cache_dir, bark_cache_dir)
                 self.logger.info(f"创建符号链接: {bark_cache_dir} -> {target_cache_dir}")
-            elif os.path.islink(bark_cache_dir):
-                link_target = os.readlink(bark_cache_dir)
-                if link_target != target_cache_dir:
-                    os.unlink(bark_cache_dir)
-                    os.symlink(target_cache_dir, bark_cache_dir)
-                    self.logger.info(f"更新符号链接: {bark_cache_dir} -> {target_cache_dir}")
         else:
-            # 如果目标目录不存在，直接使用Bark的标准路径
-            cache_base = "/fs-computility/wangxuhong/limeilin/.cache"
-            bark_cache_dir = os.path.join(cache_base, 'suno', 'bark_v0')
-            
-            # 确保目录存在
+            # 未找到本地 Bark 模型，则仅确保目录存在（若开启离线模式将报错，避免联网）
             os.makedirs(bark_cache_dir, exist_ok=True)
-            
-            # 如果目标目录不存在，也创建它作为最终存储位置
-            os.makedirs(target_cache_dir, exist_ok=True)
-        
-        # 设置缓存目录环境变量
+
+        # 设置缓存目录环境变量，让 Bark/torch 遵循项目缓存
         os.environ['XDG_CACHE_HOME'] = cache_base
-        
-        # 设置模型大小
+
+        # 根据配置选择小/大模型（若存在）
         os.environ['SUNO_USE_SMALL_MODELS'] = 'False' if self.model_size == 'large' else 'True'
-        
-        # 实际使用的缓存目录
-        actual_cache = bark_cache_dir if 'bark_cache_dir' in locals() else os.path.join(cache_base, 'suno', 'bark_v0')
-        
-        self.logger.info(f"Bark缓存目录设置为: {actual_cache}")
-        self.logger.info(f"目标存储目录: {target_cache_dir}")
-        
+
+        # 日志提示
+        self.logger.info(f"Bark缓存目录设置为: {bark_cache_dir}")
+        if target_cache_dir:
+            self.logger.info(f"目标存储目录: {target_cache_dir}")
+        else:
+            self.logger.warning("未发现本地 Bark 模型权重，若开启离线模式将无法自动下载")
+
         # 返回修改后的环境变量和实际缓存目录
-        return actual_cache, original_cache_home, original_home
+        return bark_cache_dir, original_cache_home, original_home
     
     def _check_local_models_exist(self, cache_dir: str) -> bool:
         """检查本地模型是否存在"""
@@ -231,11 +259,9 @@ class BarkGenerator:
                 else:
                     raise RuntimeError(f"无法加载Bark模型: {e}")
             finally:
-                # 恢复原始环境变量
-                if original_cache_home is not None:
-                    os.environ['XDG_CACHE_HOME'] = original_cache_home
-                elif 'XDG_CACHE_HOME' in os.environ:
-                    del os.environ['XDG_CACHE_HOME']
+                # 保持XDG_CACHE_HOME以确保后续路径解析一致（离线模式更稳健）
+                # 如果需要恢复，可根据需要在外部会话恢复
+                pass
     
     def _preprocess_text(self, text: str) -> str:
         """

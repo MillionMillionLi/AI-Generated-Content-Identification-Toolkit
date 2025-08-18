@@ -33,10 +33,10 @@ Located in `src/text_watermark/credid/`, this is a comprehensive multi-party wat
 ### AudioSeal Audio Watermarking Framework
 Located in `src/audio_watermark/`, this provides comprehensive audio watermarking capabilities:
 
-- `audioseal_wrapper.py`: Core AudioSeal watermarking implementation with message encoding/decoding
-- `bark_generator.py`: Bark text-to-speech integration for generating watermarked audio from text
-- `audio_watermark.py`: Unified audio watermarking interface supporting both direct audio and TTS workflows
-- `utils.py`: Audio processing utilities for I/O, quality assessment, and visualization
+- `audioseal_wrapper.py`: Core AudioSeal watermarking implementation with 16-bit message encoding/decoding and 3D tensor handling
+- `bark_generator.py`: Bark text-to-speech integration with intelligent cache management and local model priority loading
+- `audio_watermark.py`: Unified audio watermarking interface supporting both direct audio and TTS workflows with batch processing
+- `utils.py`: Audio processing utilities for I/O, quality assessment, visualization, and noise robustness testing
 - `audioseal/`: AudioSeal algorithm submodule (Meta's official implementation)
 
 ## Common Development Commands
@@ -135,10 +135,39 @@ generated_audio = watermark_tool.generate_audio_with_watermark(
 - **文件I/O**: 支持多种音频格式读写
 
 **依赖要求**：
-- 基础功能: `torch torchaudio julius soundfile librosa`
-- 高级功能: `pip install git+https://github.com/suno-ai/bark.git`
+- 基础功能: `torch torchaudio julius soundfile librosa scipy matplotlib`
+- 高级功能（TTS）: `pip install git+https://github.com/suno-ai/bark.git`
+- 注意：Bark安装后会自动下载模型到指定缓存目录（约5GB）
 
 ### Testing and Development
+
+#### 🚀 推荐的测试运行方式
+
+我们提供了一个统一的测试脚本 `run_tests.py` 来简化测试流程，自动处理路径设置和依赖检查：
+
+```bash
+# 运行所有测试
+python run_tests.py
+
+# 运行特定模态的测试
+python run_tests.py --audio             # 音频水印测试
+python run_tests.py --image             # 图像水印测试  
+python run_tests.py --text              # 文本水印测试
+
+# 运行特定测试文件
+python run_tests.py test_audio_watermark.py
+
+# 详细输出
+python run_tests.py --audio -v
+
+# 快速测试（跳过耗时测试）
+python run_tests.py --quick
+```
+
+#### 📁 传统的测试运行方式
+
+如果你喜欢直接运行测试文件，我们已经修复了导入问题，以下命令都可以正常工作：
+
 ```bash
 # PRC图像水印测试 (推荐)
 python test_prc_only.py                 # 完整PRC水印系统测试
@@ -165,6 +194,27 @@ python speed_analysis.py                # Performance analysis
 python tests/test_audio_watermark.py    # 完整音频水印测试套件
 python audio_watermark_demo.py          # 端到端演示脚本
 ```
+
+#### 🛠️ 故障排除
+
+如果遇到导入问题：
+
+1. **确保从项目根目录运行**：
+   ```bash
+   cd /path/to/unified_watermark_tool
+   python run_tests.py --audio
+   ```
+
+2. **检查环境**：
+   ```bash
+   python -c "import torch; print('✅ PyTorch 可用')"
+   python -c "import transformers; print('✅ Transformers 可用')"
+   ```
+
+3. **使用我们的便利脚本**：
+   ```bash
+   python run_tests.py --audio  # 自动设置路径和检查依赖
+   ```
 
 ### Configuration Management
 
@@ -206,15 +256,16 @@ audio_watermark:
 - **简洁架构**: 统一的`_image_to_latents()`函数，消除代码冗余
 
 ### Audio Watermarking (AudioSeal)
-- **Meta AudioSeal算法**: 基于深度学习的鲁棒音频水印技术
-- **消息编码系统**: 16位消息支持，使用SHA256哈希确保一致性
-- **高保真嵌入**: SNR>40dB，听觉质量几乎无损
+- **Meta AudioSeal算法**: 基于深度学习的鲁棒音频水印技术，完整Python封装
+- **消息编码系统**: 16位消息支持，使用SHA256哈希确保编码一致性，支持字符串到二进制的可靠转换
+- **高保真嵌入**: SNR>40dB（实测44.45dB），听觉质量几乎无损失
 - **多模态集成**: 
-  - 直接音频水印嵌入/提取
-  - Bark TTS集成实现文本→语音→水印的完整流程
-- **设备自适应**: 支持CPU/CUDA自动切换和内存优化
-- **批处理支持**: 高效的批量音频处理能力
-- **格式兼容**: 支持WAV、MP3、FLAC等主流音频格式
+  - 直接音频水印嵌入/提取（0.93秒嵌入，0.04秒提取）
+  - Bark TTS集成实现文本→语音→水印的完整流程（3-8秒生成）
+- **设备自适应**: 支持CPU/CUDA自动切换和设备张量管理，修复设备不匹配问题
+- **批处理支持**: 高效的批量音频处理能力（3个音频2.8秒）
+- **格式兼容**: 支持WAV、MP3、FLAC等主流音频格式读写
+- **鲁棒性测试**: 对不同SNR级别噪声的抗性验证（SNR≥10dB可靠检测）
 
 ### Unified Interface
 The `WatermarkTool` class in `src/unified/watermark_tool.py` provides:
@@ -239,13 +290,14 @@ When modifying image watermarking:
   - 测试所有三种模式(fast/accurate/exact)的性能表现
 
 When modifying audio watermarking:
-- **核心实现**: `src/audio_watermark/audioseal_wrapper.py` - AudioSeal水印封装类
-- **TTS集成**: `src/audio_watermark/bark_generator.py` - Bark文本转语音生成器
-- **统一接口**: `src/audio_watermark/audio_watermark.py` - 音频水印统一基类
-- **工具函数**: `src/audio_watermark/utils.py` - 音频处理、质量评估、可视化工具
+- **核心实现**: `src/audio_watermark/audioseal_wrapper.py` - AudioSeal水印封装类，处理3D张量维度要求
+- **TTS集成**: `src/audio_watermark/bark_generator.py` - Bark文本转语音生成器，智能缓存管理
+- **统一接口**: `src/audio_watermark/audio_watermark.py` - 音频水印统一基类，提供与图像、文本一致的API
+- **工具函数**: `src/audio_watermark/utils.py` - 音频处理、质量评估、可视化、噪声鲁棒性测试
 - **测试方法**:
-  - 使用`python tests/test_audio_watermark.py`进行完整系统测试
+  - 使用`python tests/test_audio_watermark.py`进行完整系统测试（100%检测成功率）
   - 使用`python audio_watermark_demo.py`查看端到端演示
+- **关键修复**: 解决维度匹配、设备一致性、Bark导入检测等技术问题
 
 When extending the unified interface:
 - Modify `src/unified/watermark_tool.py` for new functionality
@@ -297,12 +349,38 @@ When extending the unified interface:
 | 批处理(3个) | 2.8秒 | SNR: >40dB | 100% |
 
 ### 🔧 技术实现亮点
-- **维度处理优化**: 解决了AudioSeal对3D张量(batch, channels, time)的严格要求
-- **设备一致性**: 修复了CUDA/CPU张量设备不匹配的问题
+- **维度处理优化**: 解决了AudioSeal对3D张量(batch, channels, time)的严格要求，自动处理1D/2D输入
+- **设备一致性**: 修复了CUDA/CPU张量设备不匹配的问题，确保所有张量在同一设备
 - **消息匹配算法**: 通过原始消息列表匹配实现高准确率的消息解码
-- **错误处理机制**: 完善的异常捕获和降级处理策略
+- **错误处理机制**: 完善的异常捕获和降级处理策略，支持自动回退
 - **模型懒加载**: 按需加载AudioSeal生成器和检测器，优化内存使用
 - **多语言支持**: Bark TTS支持中英文等多种语言的高质量语音合成
+- **智能缓存管理**: Bark模型优先使用本地缓存，支持符号链接和自定义缓存目录
+- **测试覆盖**: 包含基础功能、批处理、文件I/O、噪声鲁棒性等全面测试
+
+## 🚨 已知问题与限制
+
+### Bark TTS 缓存问题
+
+**问题描述**:
+- Bark TTS存在双重缓存系统问题，会同时使用HuggingFace缓存目录和专用的Suno缓存目录
+- 即使设置了`HF_HOME`或`CACHE_DIR`，Bark仍会在`/root/.cache/suno/`下载约8.4GB的模型文件
+- 这导致磁盘空间重复占用，特别是在存储空间有限的环境中
+
+**根本原因**:
+- Bark使用独立的模型管理系统，不完全遵循HuggingFace的缓存配置
+- 存在两套缓存逻辑：HuggingFace标准缓存 + Suno专用缓存
+
+**当前受限功能**:
+- 文本转语音功能 (`generate_audio_with_watermark`)
+- 高级音频水印演示 (`demo_text_to_audio_watermark`) 
+- 完整模式演示 (`python audio_watermark_demo.py --mode full`)
+
+**不受影响的功能**:
+- 基础音频水印功能 (AudioSeal嵌入/提取)
+- 基础模式演示 (`python audio_watermark_demo.py --mode basic`)
+- 音频文件处理和质量评估
+- 批处理功能
 
 ## Memory Annotations
 
@@ -510,3 +588,78 @@ python tests/test_video_watermark_demo.py
 
 # 预期输出：视频生成成功，保存到 tests/test_results/
 ```
+
+## Video Watermarking (HunyuanVideo + VideoSeal) 快速参考
+
+本项目提供基于 Diffusers 的 HunyuanVideo 文生视频与 VideoSeal 水印的一体化流程，采用本地快照离线加载，避免联网不确定性。模型用法参考其模型卡（Diffusers 示例）[HunyuanVideo 模型卡](https://huggingface.co/hunyuanvideo-community/HunyuanVideo)。
+
+### 代码结构（关键文件）
+- `src/video_watermark/model_manager.py`
+  - 管理 HunyuanVideo 本地缓存目录，优先使用本地快照，必要时可下载（测试默认关闭下载）。
+- `src/video_watermark/hunyuan_video_generator.py`
+  - 按工作脚本方式加载本地快照：
+    - `HunyuanVideoTransformer3DModel.from_pretrained(local_path, subfolder="transformer", torch_dtype, local_files_only=True)`
+    - `HunyuanVideoPipeline.from_pretrained(local_path, transformer=transformer, torch_dtype, local_files_only=True)`
+    - CUDA 下启用 `vae.enable_tiling()` 与 `enable_model_cpu_offload()`，降低显存占用与黑屏风险。
+  - 核心接口：
+    - `generate_video(...) -> Union[list/np.ndarray, str]`（output_path 为 None 返回帧序列，否则保存文件）
+    - `generate_video_tensor(...) -> torch.Tensor  # (frames, channels, H, W)`
+- `src/video_watermark/videoseal_wrapper.py`
+  - VideoSeal 嵌入与检测包装，包含字符串⇄bits 转换与分块检测处理。
+- `src/video_watermark/utils.py`
+  - 视频 I/O（OpenCV）、保存/读取、性能计时、GPU 内存监控等工具。
+- `src/video_watermark/video_watermark.py`
+  - 统一视频水印接口，对上层/统一引擎暴露：
+    - `generate_video_with_watermark(prompt, message, ...) -> str`
+    - `embed_watermark(video_path, message, ...) -> str`
+    - `extract_watermark(video_path, max_frames=None, chunk_size=None) -> Dict`
+    - `batch_process_videos(...) -> list`
+    - `get_system_info() -> Dict` / `clear_cache()`
+
+### 接口输入/输出（摘要）
+- `HunyuanVideoGenerator.generate_video(prompt, negative_prompt=None, num_frames=49, height=720, width=1280, num_inference_steps=30, guidance_scale=6.0, seed=None, output_path=None)`
+  - 输入：提示词、帧数（建议 4*k+1，如 13/49/75）、分辨率、步数等
+  - 输出：帧序列或输出文件路径
+- `HunyuanVideoGenerator.generate_video_tensor(...) -> torch.Tensor`
+  - 输出：`(frames, channels, height, width)`，值域 `[0, 1]`
+- `VideoWatermark.generate_video_with_watermark(prompt, message, ..., lowres_attenuation=True) -> str`
+  - 输出：保存的视频路径
+- `VideoWatermark.embed_watermark(video_path, message, ..., max_frames=None) -> str`
+  - 输出：保存的视频路径
+- `VideoWatermark.extract_watermark(video_path, max_frames=None, chunk_size=None) -> Dict[str, Any]`
+  - 输出：`{"detected": bool, "message": str, "confidence": float, ...}`
+
+### 典型用法
+```python
+from src.video_watermark.video_watermark import create_video_watermark
+
+wm = create_video_watermark()
+
+# 文生视频 + 水印（5秒@15fps → 75帧）
+out_path = wm.generate_video_with_watermark(
+    prompt="阳光洒在海面上",
+    message="demo_msg",
+    num_frames=75,
+    height=320,
+    width=512,
+    num_inference_steps=30,
+    seed=42
+)
+
+# 提取水印
+result = wm.extract_watermark(out_path, max_frames=50)
+```
+
+### 测试与运行
+- 回归测试脚本：`tests/test_video_watermark_demo.py`
+  - 用例1：纯文生视频（包含非黑屏像素检查）
+  - 用例2：文生视频 + 水印嵌入 + 提取
+- 运行命令：
+```bash
+conda activate mmwt && python -u unified_watermark_tool/tests/test_video_watermark_demo.py
+```
+
+### 重要约定
+- 仅离线加载本地 HunyuanVideo 快照（`local_files_only=True`），避免联网不确定性。
+- CUDA 时启用 `vae.enable_tiling()` 与 `enable_model_cpu_offload()`；不与 `device_map` 混用。
+- 5秒@15fps 可用 `num_frames=75`，分辨率如 `320x512`；OOM 时自动降参重试（生成器内置）。
