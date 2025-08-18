@@ -37,14 +37,42 @@ image_watermark:
     decoder_path: "models/decoder.pth"
     strength: 0.8
 
+# 音频水印配置
+audio_watermark:
+  algorithm: "audioseal"  # 默认使用AudioSeal算法
+  model_name: "audioseal_wm_16bits"
+  detector_name: "audioseal_detector_16bits"
+  sample_rate: 16000  # AudioSeal要求的采样率
+  message_bits: 16  # 水印消息位数
+  device: null  # 自动选择设备，可设置为 "cuda" 或 "cpu"
+  watermark_strength: 1.0  # 水印强度 (0.0-2.0)
+  detection_threshold: 0.5  # 检测阈值
+  message_threshold: 0.5  # 消息解码阈值
+  
+  # Bark文本转音频配置
+  bark:
+    model_size: "large"  # 模型大小 ("small", "large")
+    use_gpu: true  # 是否使用GPU
+    temperature: 0.8  # 生成温度 (0.0-1.0)
+    default_voice: "v2/en_speaker_6"  # 默认语音预设
+    silence_duration: 0.25  # 静音时长(秒)
+    
+  # AudioSeal专用配置
+  audioseal:
+    nbits: 16  # 消息位数
+    alpha: 1.0  # 水印强度调节
+    cache_dir: "~/.cache/audioseal"  # 模型缓存目录
+
 # 输出配置
 output:
   text_output_dir: "outputs/text"
   image_output_dir: "outputs/images"
+  audio_output_dir: "outputs/audio"
   log_level: "INFO"
   save_intermediate: false
 
 # 评估配置
 evaluation:
   metrics: ["psnr", "ssim", "lpips"]  # 图像质量评估
-  text_metrics: ["perplexity", "bleu"]  # 文本质量评估 
+  text_metrics: ["perplexity", "bleu"]  # 文本质量评估
+  audio_metrics: ["snr", "mse", "correlation"]  # 音频质量评估 

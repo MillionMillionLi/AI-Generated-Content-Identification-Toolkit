@@ -158,7 +158,7 @@ class VideoWatermark:
             output_path = FileUtils.get_unique_filename(output_path)
             
             with PerformanceTimer("视频保存", self.logger):
-                VideoIOUtils.save_video_tensor(watermarked_tensor, output_path, fps=8)
+                VideoIOUtils.save_video_tensor(watermarked_tensor, output_path, fps=15)
             
             file_size = FileUtils.get_file_size_mb(output_path)
             self.logger.info(f"视频已保存: {output_path} ({file_size:.1f} MB)")
@@ -229,7 +229,7 @@ class VideoWatermark:
             output_path = FileUtils.get_unique_filename(output_path)
             
             with PerformanceTimer("视频保存", self.logger):
-                VideoIOUtils.save_video_tensor(watermarked_tensor, output_path, fps=24)
+                VideoIOUtils.save_video_tensor(watermarked_tensor, output_path, fps=15)
             
             file_size = FileUtils.get_file_size_mb(output_path)
             self.logger.info(f"带水印视频已保存: {output_path} ({file_size:.1f} MB)")

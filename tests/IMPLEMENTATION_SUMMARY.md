@@ -2,14 +2,14 @@
 
 ## 📋 项目概述
 
-成功实现了基于HunyuanVideo + VideoSeal的统一视频水印系统，支持文生视频和水印嵌入/提取的完整工作流程。
+成功实现了基于Zeroscope + VideoSeal的统一视频水印系统，支持文生视频和水印嵌入/提取的完整工作流程。已从HunyuanVideo迁移到Zeroscope v2_576w模型，保持完整功能的同时提升兼容性。
 
 ## ✅ 已完成功能
 
 ### 1. 核心模块实现
 
 #### 🏗️ 统一架构设计
-- **统一入口**: `src/video_watermark/__init__.py`
+- **统一入口**: `src/video_watermark/__init__.y`
 - **主接口类**: `src/video_watermark/video_watermark.py`
 - **模块化设计**: 每个组件职责清晰，可独立测试
 

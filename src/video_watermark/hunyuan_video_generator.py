@@ -14,7 +14,7 @@ from .model_manager import ModelManager
 
 # 尝试导入diffusers相关模块
 try:
-    from diffusers import HunyuanVideoPipeline
+    from diffusers import HunyuanVideoPipeline, HunyuanVideoTransformer3DModel
     from diffusers.utils import export_to_video
     DIFFUSERS_AVAILABLE = True
 except ImportError:
@@ -61,66 +61,48 @@ class HunyuanVideoGenerator:
                 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
                 self.logger.info("设置HF_ENDPOINT为镜像站点: https://hf-mirror.com")
             
-            # 尝试多个仓库源和网络配置
-            repo_candidates = [
-                "hunyuanvideo-community/HunyuanVideo",  # 社区diffusers兼容版本
-                "tencent/HunyuanVideo"  # 官方版本（回退）
-            ]
-            
-            # 网络配置候选（镜像 -> 直连）
-            network_configs = [
-                {'HF_ENDPOINT': 'https://hf-mirror.com', 'desc': '镜像站点'},
-                {'HF_ENDPOINT': None, 'desc': 'HuggingFace直连'}
-            ]
-            
-            pipeline_loaded = False
-            for network_config in network_configs:
-                # 设置网络环境
-                if network_config['HF_ENDPOINT']:
-                    os.environ['HF_ENDPOINT'] = network_config['HF_ENDPOINT']
-                else:
-                    os.environ.pop('HF_ENDPOINT', None)
-                
-                self.logger.info(f"尝试网络配置: {network_config['desc']}")
-                
-                for repo_id in repo_candidates:
-                    try:
-                        self.logger.info(f"尝试从仓库加载: {repo_id}")
-                        self.pipeline = HunyuanVideoPipeline.from_pretrained(
-                            repo_id,
-                            torch_dtype=torch.bfloat16 if self.device == 'cuda' else torch.float32,
-                            device_map="balanced" if self.device == 'cuda' else None,
-                            cache_dir=str(self.model_manager.cache_dir)
-                        )
-                        self.logger.info(f"成功从 {repo_id} 加载HunyuanVideo管道 (使用{network_config['desc']})")
-                        pipeline_loaded = True
-                        break
-                    except Exception as e:
-                        self.logger.warning(f"从 {repo_id} 加载失败 (使用{network_config['desc']}): {e}")
-                        continue
-                
-                if pipeline_loaded:
-                    break
-            
-            # 恢复原始环境变量
-            if original_endpoint:
-                os.environ['HF_ENDPOINT'] = original_endpoint
-            elif 'HF_ENDPOINT' in os.environ:
-                os.environ.pop('HF_ENDPOINT', None)
-            
-            if not pipeline_loaded:
-                raise RuntimeError("所有HunyuanVideo仓库和网络配置都加载失败")
-            
-            # 移动到指定设备
-            if self.device == 'cpu':
-                self.pipeline = self.pipeline.to('cpu')
-            
-            # 启用内存优化
-            if hasattr(self.pipeline, 'enable_model_cpu_offload'):
+            # 仅使用本地快照路径按工作脚本方式加载
+            try:
+                local_model_path = self.model_manager.ensure_hunyuan_model(allow_download=False)
+            except Exception as e:
+                raise RuntimeError(f"未找到本地HunyuanVideo模型，请先下载: {e}")
+
+            self.logger.info(f"从本地快照加载HunyuanVideo: {local_model_path}")
+
+            if self.device == 'cuda':
+                transformer = HunyuanVideoTransformer3DModel.from_pretrained(
+                    local_model_path,
+                    subfolder="transformer",
+                    torch_dtype=torch.bfloat16,
+                    local_files_only=True
+                )
+                self.pipeline = HunyuanVideoPipeline.from_pretrained(
+                    local_model_path,
+                    transformer=transformer,
+                    torch_dtype=torch.float16,
+                    local_files_only=True
+                )
+            else:
+                transformer = HunyuanVideoTransformer3DModel.from_pretrained(
+                    local_model_path,
+                    subfolder="transformer",
+                    torch_dtype=torch.float32,
+                    local_files_only=True
+                )
+                self.pipeline = HunyuanVideoPipeline.from_pretrained(
+                    local_model_path,
+                    transformer=transformer,
+                    torch_dtype=torch.float32,
+                    local_files_only=True
+                )
+
+            # 按成功脚本的方式进行内存优化
+            if hasattr(self.pipeline, 'vae') and hasattr(self.pipeline.vae, 'enable_tiling'):
+                self.pipeline.vae.enable_tiling()
+                self.logger.info("启用VAE tiling")
+            if self.device == 'cuda' and hasattr(self.pipeline, 'enable_model_cpu_offload'):
                 self.pipeline.enable_model_cpu_offload()
-            
-            if hasattr(self.pipeline, 'enable_vae_slicing'):
-                self.pipeline.enable_vae_slicing()
+                self.logger.info("启用模型CPU offload")
             
             self.logger.info(f"HunyuanVideo管道加载完成，设备: {self.device}")
             
@@ -146,7 +128,7 @@ class HunyuanVideoGenerator:
         Args:
             prompt: 文本提示词
             negative_prompt: 负向提示词
-            num_frames: 视频帧数 (默认49帧)
+            num_frames: 视频帧数 (必须是4*k+1的形式，如49、129等)
             height: 视频高度 (默认720p)
             width: 视频宽度 (默认1280)
             num_inference_steps: 推理步数
@@ -162,6 +144,12 @@ class HunyuanVideoGenerator:
         self.logger.info(f"开始生成视频: '{prompt[:50]}...'")
         self.logger.info(f"参数: {num_frames}帧, {height}x{width}, {num_inference_steps}步")
         
+        # 验证num_frames格式（必须是4*k+1）
+        if (num_frames - 1) % 4 != 0:
+            corrected_frames = ((num_frames - 1) // 4) * 4 + 1
+            self.logger.warning(f"num_frames={num_frames}不符合4*k+1格式，自动修正为{corrected_frames}")
+            num_frames = corrected_frames
+        
         # 设置随机种子
         if seed is not None:
             torch.manual_seed(seed)
@@ -169,28 +157,97 @@ class HunyuanVideoGenerator:
                 torch.cuda.manual_seed(seed)
         
         try:
-            # 生成视频
-            with torch.no_grad():
-                video_frames = self.pipeline(
-                    prompt=prompt,
-                    negative_prompt=negative_prompt,
-                    num_frames=num_frames,
-                    height=height,
-                    width=width,
-                    num_inference_steps=num_inference_steps,
-                    guidance_scale=guidance_scale,
-                    generator=torch.Generator(device=self.device).manual_seed(seed) if seed else None
-                ).frames[0]  # 获取第一个(也是唯一一个)视频
+            # 生成视频（带OOM自适应重试）
+            attempt = 0
+            max_attempts = 3
+            current_params = {
+                'num_frames': num_frames,
+                'height': height,
+                'width': width,
+                'num_inference_steps': num_inference_steps
+            }
+
+            while True:
+                try:
+                    with torch.no_grad():
+                        result = self.pipeline(
+                            prompt=prompt,
+                            negative_prompt=negative_prompt,
+                            num_frames=current_params['num_frames'],
+                            height=current_params['height'],
+                            width=current_params['width'],
+                            num_inference_steps=current_params['num_inference_steps'],
+                            guidance_scale=guidance_scale,
+                            generator=torch.Generator(device=self.device).manual_seed(seed) if seed else None
+                        )
+                    break
+                except RuntimeError as re:
+                    # 捕获CUDA OOM并自适应降低参数重试
+                    message = str(re)
+                    if ('CUDA out of memory' in message or 'out of memory' in message) and attempt < max_attempts - 1:
+                        self.logger.warning(f"检测到CUDA OOM，进行自适应重试: {message}")
+                        attempt += 1
+                        # 清理缓存
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                        # 降低分辨率（减半，但不低于256）
+                        current_params['height'] = max(256, (current_params['height'] // 2))
+                        current_params['width'] = max(256, (current_params['width'] // 2))
+                        # 降低帧数到接近一半，并保持4*k+1格式
+                        reduced_frames = max(9, current_params['num_frames'] // 2)
+                        if (reduced_frames - 1) % 4 != 0:
+                            reduced_frames = ((reduced_frames - 1) // 4) * 4 + 1
+                        current_params['num_frames'] = max(9, reduced_frames)
+                        # 降低推理步数
+                        current_params['num_inference_steps'] = max(8, current_params['num_inference_steps'] - 5)
+                        self.logger.info(
+                            f"重试参数 -> frames: {current_params['num_frames']}, "
+                            f"size: {current_params['height']}x{current_params['width']}, "
+                            f"steps: {current_params['num_inference_steps']}"
+                        )
+                        continue
+                    raise
+
+            # 跳出重试循环后，统一解析输出结果，确保video_frames已赋值
+            if hasattr(result, 'frames') and result.frames is not None:
+                video_frames = result.frames[0]  # 标准格式
+            elif hasattr(result, 'videos') and result.videos is not None:
+                video_frames = result.videos[0]  # 另一种可能的格式
+            elif isinstance(result, (list, tuple)) and len(result) > 0:
+                video_frames = result[0]  # 直接返回列表
+            else:
+                # 如果都不是，尝试直接使用result
+                video_frames = result
+
+            self.logger.info(f"管道输出类型: {type(result)}")
+            if hasattr(result, '__dict__'):
+                self.logger.info(f"管道输出属性: {list(result.__dict__.keys())}")
+
+            # 详细检查输出结构
+            if hasattr(result, 'frames'):
+                self.logger.info(f"result.frames 类型: {type(result.frames)}")
+                if result.frames is not None:
+                    self.logger.info(f"result.frames 长度: {len(result.frames) if hasattr(result.frames, '__len__') else 'N/A'}")
+                    if hasattr(result.frames, '__len__') and len(result.frames) > 0:
+                        self.logger.info(f"result.frames[0] 类型: {type(result.frames[0])}")
+                        if isinstance(result.frames[0], list) and len(result.frames[0]) > 0:
+                            self.logger.info(f"result.frames[0][0] 类型: {type(result.frames[0][0])}")
+                            if hasattr(result.frames[0][0], 'size'):
+                                self.logger.info(f"第一帧大小: {result.frames[0][0].size}")
+                                # 检查第一帧的像素值
+                                import numpy as np
+                                frame_array = np.array(result.frames[0][0])
+                                self.logger.info(f"第一帧数据范围: min={frame_array.min():.3f}, max={frame_array.max():.3f}")
             
-            self.logger.info(f"视频生成完成: {video_frames.shape}")
+            self.logger.info(f"视频生成完成: {type(video_frames)} - {getattr(video_frames, 'shape', 'no shape attr')}")
             
             # 如果指定输出路径，保存视频文件
             if output_path:
                 # 确保输出目录存在
                 os.makedirs(os.path.dirname(output_path), exist_ok=True)
                 
-                # 使用diffusers的export_to_video保存
-                export_to_video(video_frames, output_path, fps=8)
+                # 使用diffusers的export_to_video保存 (官方推荐fps=15)
+                export_to_video(video_frames, output_path, fps=15)
                 
                 self.logger.info(f"视频已保存到: {output_path}")
                 return output_path
@@ -199,7 +256,52 @@ class HunyuanVideoGenerator:
                 return video_frames
                 
         except Exception as e:
+            # 如果仍然OOM且是CUDA设备，尝试CPU回退一次
+            message = str(e)
+            if self.device != 'cpu' and ('CUDA out of memory' in message or 'out of memory' in message):
+                try:
+                    self.logger.warning("持续OOM，尝试切换到CPU并以更小参数重试一次")
+                    # 切换到CPU
+                    self.pipeline = self.pipeline.to('cpu')
+                    self.device = 'cpu'
+                    # 进一步降低参数
+                    retry_frames = max(9, ((num_frames // 2) // 4) * 4 + 1)
+                    retry_height = max(256, height // 2)
+                    retry_width = max(256, width // 2)
+                    retry_steps = max(8, num_inference_steps - 10)
+                    with torch.no_grad():
+                        result = self.pipeline(
+                            prompt=prompt,
+                            negative_prompt=negative_prompt,
+                            num_frames=retry_frames,
+                            height=retry_height,
+                            width=retry_width,
+                            num_inference_steps=retry_steps,
+                            guidance_scale=guidance_scale,
+                            generator=torch.Generator(device='cpu').manual_seed(seed) if seed else None
+                        )
+                    # 处理输出
+                    if hasattr(result, 'frames') and result.frames is not None:
+                        video_frames = result.frames[0]
+                    elif hasattr(result, 'videos') and result.videos is not None:
+                        video_frames = result.videos[0]
+                    elif isinstance(result, (list, tuple)) and len(result) > 0:
+                        video_frames = result[0]
+                    else:
+                        video_frames = result
+                    self.logger.info(f"CPU回退成功: frames={retry_frames}, size={retry_height}x{retry_width}, steps={retry_steps}")
+                    if output_path:
+                        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                        export_to_video(video_frames, output_path, fps=15)
+                        self.logger.info(f"视频已保存到: {output_path}")
+                        return output_path
+                    return video_frames
+                except Exception as e_cpu:
+                    self.logger.error(f"CPU回退仍失败: {e_cpu}")
+                    # 继续抛出原始错误
             self.logger.error(f"视频生成失败: {e}")
+            import traceback
+            self.logger.error(f"详细错误信息: {traceback.format_exc()}")
             raise RuntimeError(f"Failed to generate video: {e}")
     
     def generate_video_tensor(
@@ -221,16 +323,59 @@ class HunyuanVideoGenerator:
         kwargs['output_path'] = None
         video_frames = self.generate_video(prompt, **kwargs)
         
-        # 转换numpy array为torch tensor
+        # 转换为torch tensor
+        self.logger.info(f"generate_video_tensor 收到数据类型: {type(video_frames)}")
+        
         if isinstance(video_frames, np.ndarray):
             # video_frames形状: (frames, height, width, channels)
             # 转换为: (frames, channels, height, width)
             video_tensor = torch.from_numpy(video_frames).permute(0, 3, 1, 2).float()
             # 归一化到[0, 1]
             video_tensor = video_tensor / 255.0
+        elif isinstance(video_frames, list):
+            # 如果是列表，尝试转换为numpy数组
+            self.logger.info(f"列表长度: {len(video_frames)}, 第一个元素类型: {type(video_frames[0]) if video_frames else 'empty'}")
+            if video_frames and isinstance(video_frames[0], np.ndarray):
+                # 列表中包含numpy数组，合并它们
+                video_array = np.stack(video_frames, axis=0)
+                video_tensor = torch.from_numpy(video_array).float()
+                # 检查维度并调整
+                if video_tensor.dim() == 4:  # (frames, height, width, channels)
+                    video_tensor = video_tensor.permute(0, 3, 1, 2)
+                # 归一化到[0, 1]
+                if video_tensor.max() > 1.0:
+                    video_tensor = video_tensor / 255.0
+            elif video_frames and hasattr(video_frames[0], 'convert'):
+                # PIL.Image 对象列表
+                from PIL import Image
+                self.logger.info("检测到PIL图像列表，转换为tensor")
+                # 转换PIL图像为numpy数组
+                frames = []
+                for img in video_frames:
+                    if isinstance(img, Image.Image):
+                        # 确保图像是RGB格式
+                        img_rgb = img.convert('RGB')
+                        # 转换为numpy数组 (H, W, C)
+                        frame_array = np.array(img_rgb)
+                        frames.append(frame_array)
+                
+                # 堆叠所有帧 (frames, height, width, channels)
+                video_array = np.stack(frames, axis=0)
+                # 转换为tensor并调整维度 (frames, channels, height, width)
+                video_tensor = torch.from_numpy(video_array).permute(0, 3, 1, 2).float()
+                # 归一化到[0, 1]
+                video_tensor = video_tensor / 255.0
+            else:
+                raise ValueError(f"不支持的列表内容类型: {type(video_frames[0]) if video_frames else 'empty list'}")
+        elif torch.is_tensor(video_frames):
+            video_tensor = video_frames.float()
+            # 检查是否需要归一化
+            if video_tensor.max() > 1.0:
+                video_tensor = video_tensor / 255.0
         else:
-            video_tensor = video_frames
+            raise ValueError(f"不支持的video_frames类型: {type(video_frames)}")
         
+        self.logger.info(f"最终tensor形状: {video_tensor.shape}")
         return video_tensor
     
     def get_pipeline_info(self) -> Dict[str, Any]:
