@@ -4,22 +4,59 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a unified watermarking tool that supports text, image, and audio watermarking. The project integrates multiple watermarking algorithms including:
+This is a unified watermarking tool that supports text, image, audio, and video watermarking. The project integrates multiple watermarking algorithms including:
 
 - **Text Watermarking**: CredID algorithm for Large Language Model (LLM) identification
-- **Image Watermarking**: PRC-Watermark and Stable Signature algorithms for image watermarking
-- **Audio Watermarking**: AudioSeal algorithm for robust audio watermarking with Bark text-to-speech integration
+- **Image Watermarking**: VideoSeal backend by default, PRC-Watermark optional
+- **Audio Watermarking**: AudioSeal algorithm for robust audio watermarking with optional Bark text-to-speech integration
+- **Video Watermarking**: HunyuanVideo generation + VideoSeal watermarking
 
 ## Architecture
 
-The codebase follows a modular architecture with four main components:
+The codebase follows a modular architecture with the following components:
 
 ### Core Modules
-- `src/unified/watermark_tool.py`: Main unified interface providing text, image, and audio watermarking capabilities
-- `src/text_watermark/`: Text watermarking implementations, primarily CredID framework 
-- `src/image_watermark/`: Image watermarking implementations including PRC-Watermark
-- `src/audio_watermark/`: Audio watermarking implementations using AudioSeal and Bark TTS
-- `src/utils/`: Shared utilities for configuration loading and model management
+- `src/unified/unified_engine.py`: Core engine for multimodal watermarking (text/image/audio/video)
+- `src/unified/watermark_tool.py`: High-level facade over the engine; preferred entry-point for users
+- `src/text_watermark/`: CredID-based text watermarking implementation
+- `src/image_watermark/`: Image watermarking (VideoSeal backend by default; PRC available)
+- `src/audio_watermark/`: Audio watermarking (AudioSeal; optional Bark TTS)
+- `src/video_watermark/`: Video generation (HunyuanVideo) + VideoSeal watermarking
+- `src/utils/`: Shared utilities for configuration and model management
+
+### Unified Engine (Updated)
+Location: `src/unified/unified_engine.py`
+
+Key features:
+- Unified API: `embed(prompt, message, modality, **kwargs)` and `extract(content, modality, **kwargs)` for `text|image|audio|video`
+- Defaults: `text=credid`, `image=videoseal`, `audio=audioseal`, `video=hunyuan+videoseal`
+- Offline-first: lazily initializes text model/tokenizer from local cache; falls back to `sshleifer/tiny-gpt2` if configured model not found (still offline)
+- Config-driven: reads `config/text_config.yaml` and modality-specific configs
+
+Quick start:
+```python
+from src.unified.watermark_tool import WatermarkTool
+
+tool = WatermarkTool()
+# Text
+txt = tool.embed("示例文本", "wm_msg", 'text')
+res = tool.extract(txt, 'text')
+# Image
+img = tool.embed("a cat", "hello_vs", 'image')
+# Audio (persist to file)
+aud = tool.embed("audio content", "hello_audio", 'audio', output_path="outputs/audio/a.wav")
+# Video (generates and saves a file)
+vid = tool.embed("阳光洒在海面上", "video_wm", 'video')
+```
+
+Parameters and returns:
+- Text: auto-uses cached model/tokenizer if not provided; returns `str`
+- Image: returns `PIL.Image`; `extract` supports `replicate/chunk_size`
+- Audio: `output_path` persists file; returns `torch.Tensor | str`
+- Video: returns saved video path; `extract` returns `{detected, message, confidence, metadata}`
+
+Offline cache hints:
+- Set `TRANSFORMERS_OFFLINE=1` and `HF_HUB_OFFLINE=1`; store models under `models/` or point `HF_HOME/HF_HUB_CACHE` to local hub
 
 ### CredID Text Watermarking Framework
 Located in `src/text_watermark/credid/`, this is a comprehensive multi-party watermarking framework:
@@ -63,17 +100,17 @@ pip install git+https://github.com/suno-ai/bark.git
 ```
 
 ### Running the Tool
-```bash
-# Command line interface
-watermark-tool --mode text --action embed --input "your text" --key "your_key"
-watermark-tool --mode image --action embed --input "image.png" --key "your_key"
-watermark-tool --mode audio --action embed --input "audio.wav" --message "your_message"
+```python
+from src.unified.watermark_tool import WatermarkTool
 
-# Python interface (see examples/quick_start.py)
-python examples/quick_start.py
+tool = WatermarkTool()
+text_wm = tool.embed("这是一个测试文本", "msg", 'text')
+text_res = tool.extract(text_wm, 'text')
 
-# Audio watermarking demo
-python audio_watermark_demo.py
+# Optional: choose algorithms
+tool.set_algorithm('image', 'videoseal')
+img = tool.generate_image_with_watermark("a cat", message="hello")
+img_res = tool.extract_image_watermark(img, replicate=16, chunk_size=16)
 ```
 
 ### 使用视频水印（VideoSeal）最小封装

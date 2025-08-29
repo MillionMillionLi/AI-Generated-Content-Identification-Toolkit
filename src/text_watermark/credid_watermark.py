@@ -153,6 +153,16 @@ class CredIDWatermark:
             max_tokens = self.config.get('max_new_tokens', 1800)  # 大幅增加默认值
             encode_len = self.lm_params.get('message_len', 10) * self.wm_params.get('encode_ratio', 8)
             needed_segments = (max_tokens + encode_len - 1) // encode_len
+
+            # 关键保护：限制段数不超过shift模式可支持的数量，避免下游索引越界
+            # 注意：shifts数组的长度决定了最大支持的段数
+            # 但由于内部实现可能有索引偏移，我们保守地使用 len(shifts) - 1
+            default_shifts = [21, 24, 3, 8, 14, 2, 4, 28, 31, 3, 8, 14, 2, 4, 28]
+            shifts = self.lm_params.get('shifts', default_shifts)
+            # 保守限制：使用 len(shifts) - 1 以避免边界问题
+            max_supported_segments = self.wm_params.get('max_segments', len(shifts) - 1 if shifts else 10)
+            if needed_segments > max_supported_segments:
+                needed_segments = max_supported_segments
             
             # 如果需要更多段，循环重复消息
             if needed_segments > len(original_binary):

@@ -302,6 +302,11 @@ class UnifiedWatermarkEngine:
                     )
                 else:
                     # 文生视频+水印
+                    # 若未传入分辨率，设置更安全的默认分辨率（16倍数）
+                    if 'height' not in kwargs:
+                        kwargs['height'] = 320
+                    if 'width' not in kwargs:
+                        kwargs['width'] = 512
                     return watermark.generate_video_with_watermark(
                         prompt, 
                         message, 

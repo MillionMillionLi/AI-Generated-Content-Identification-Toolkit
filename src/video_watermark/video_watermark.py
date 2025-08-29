@@ -78,8 +78,9 @@ class VideoWatermark:
         # HunyuanVideo参数
         negative_prompt: Optional[str] = None,
         num_frames: int = 49,
-        height: int = 720,
-        width: int = 1280,
+        # 使用16的倍数作为默认分辨率，避免后续VideoSeal对齐报错
+        height: int = 320,
+        width: int = 512,
         num_inference_steps: int = 30,
         guidance_scale: float = 6.0,
         seed: Optional[int] = None,
@@ -110,17 +111,24 @@ class VideoWatermark:
         self.logger.info(f"水印消息: '{message}'")
         
         with PerformanceTimer("文生视频+水印嵌入", self.logger):
-            # 1. 生成视频tensor
+            # 1. 生成视频tensor（确保分辨率为16的倍数）
             self.logger.info("步骤1: 生成视频tensor")
             generator = self._ensure_video_generator()
+            # 对齐到16的倍数
+            def _align16(x: int) -> int:
+                return max(16, (x // 16) * 16)
+            height_aligned = _align16(height)
+            width_aligned = _align16(width)
+            if height_aligned != height or width_aligned != width:
+                self.logger.info(f"分辨率自动对齐: {height}x{width} -> {height_aligned}x{width_aligned}")
             
             with PerformanceTimer("视频生成", self.logger):
                 video_tensor = generator.generate_video_tensor(
                     prompt=prompt,
                     negative_prompt=negative_prompt,
                     num_frames=num_frames,
-                    height=height,
-                    width=width,
+                    height=height_aligned,
+                    width=width_aligned,
                     num_inference_steps=num_inference_steps,
                     guidance_scale=guidance_scale,
                     seed=seed

@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多模态水印工具</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #a5b4fc;
+            --secondary: #06b6d4;
+            --accent: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            
+            --gray-50: #f8fafc;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+            --gray-300: #cbd5e1;
+            --gray-400: #94a3b8;
+            --gray-500: #64748b;
+            --gray-600: #475569;
+            --gray-700: #334155;
+            --gray-800: #1e293b;
+            --gray-900: #0f172a;
+            
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #f1f5f9;
+            
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-tertiary: #64748b;
+            
+            --border: #e2e8f0;
+            --border-light: #f1f5f9;
+            
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            
+            --radius: 0.75rem;
+            --radius-sm: 0.5rem;
+            --radius-lg: 1rem;
+            
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--text-primary);
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .logo-icon {
+            width: 3rem;
+            height: 3rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1.25rem;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .logo-text {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.125rem;
+            font-weight: 400;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Main Layout */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-primary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-light);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .card-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-light);
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-tertiary) 100%);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .card-description {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .card-content {
+            padding: 1.5rem;
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input, .form-textarea, .form-select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            font-family: inherit;
+            transition: var(--transition);
+            background: var(--bg-primary);
+        }
+
+        .form-input:focus, .form-textarea:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgb(99 102 241 / 0.1);
+        }
+
+        .form-select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1rem;
+            padding-right: 2.5rem;
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 6rem;
+        }
+
+        /* Radio Cards for Operation Mode */
+        .radio-card {
+            flex: 1;
+            padding: 1rem;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: center;
+            background: var(--bg-primary);
+        }
+
+        .radio-card:hover {
+            border-color: var(--primary-light);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+
+        .radio-card.active {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+
+        .radio-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .radio-icon {
+            font-size: 1.125rem;
+        }
+
+        /* File Upload Area */
+        .file-upload-area {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            background: var(--bg-tertiary);
+        }
+
+        .file-upload-area:hover {
+            border-color: var(--primary);
+            background: var(--bg-primary);
+        }
+
+        .file-upload-area.dragover {
+            border-color: var(--primary);
+            background: rgb(99 102 241 / 0.05);
+        }
+
+        .upload-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .upload-icon {
+            font-size: 2rem;
+            opacity: 0.6;
+        }
+
+        .upload-text p:first-child {
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .upload-hint {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        /* File Info */
+        .file-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-top: 0.5rem;
+        }
+
+        .file-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+        .file-size {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        .remove-file {
+            background: none;
+            border: none;
+            font-size: 1.25rem;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 50%;
+            transition: var(--transition);
+        }
+
+        .remove-file:hover {
+            background: var(--danger);
+            color: white;
+        }
+        .modality-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .modality-card {
+            padding: 1rem;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: center;
+            background: var(--bg-primary);
+        }
+
+        .modality-card:hover {
+            border-color: var(--primary-light);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .modality-card.active {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modality-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .modality-name {
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        /* Input Grid */
+        .input-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        /* Buttons */
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            flex: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            box-shadow: var(--shadow);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn-secondary {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--bg-tertiary);
+            border-color: var(--primary-light);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Results Area */
+        .result-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 12rem;
+            color: var(--text-tertiary);
+            text-align: center;
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-lg);
+            background: var(--bg-tertiary);
+        }
+
+        .result-placeholder-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.6;
+        }
+
+        .result-placeholder h3 {
+            font-size: 1.125rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .result-content {
+            display: none;
+        }
+
+        .result-content.active {
+            display: block;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            margin-bottom: 1.5rem;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-text {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .progress-percent {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 0.5rem;
+            background: var(--bg-tertiary);
+            border-radius: 0.25rem;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        /* Status Badge */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-processing {
+            background: rgb(99 102 241 / 0.1);
+            color: var(--primary);
+        }
+
+        .status-success {
+            background: rgb(16 185 129 / 0.1);
+            color: var(--accent);
+        }
+
+        .status-error {
+            background: rgb(239 68 68 / 0.1);
+            color: var(--danger);
+        }
+
+        /* Result Info */
+        .result-info {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 500;
+        }
+
+        .info-value {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Media Preview */
+        .media-preview {
+            background: var(--gray-900);
+            border-radius: var(--radius);
+            min-height: 12rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .media-preview img, .media-preview video {
+            max-width: 100%;
+            max-height: 18rem;
+            object-fit: contain;
+        }
+
+        /* Loading Spinner */
+        .loading-spinner {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .main-layout {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+
+            .modality-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .logo-text {
+                font-size: 1.5rem;
+            }
+        }
+
+        /* Advanced Options */
+        .advanced-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .option-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .range-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-range {
+            width: 100%;
+            height: 0.375rem;
+            border-radius: 0.1875rem;
+            background: var(--bg-tertiary);
+            outline: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+        }
+
+        .form-range::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 1.125rem;
+            height: 1.125rem;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: var(--shadow);
+        }
+
+        .form-range::-moz-range-thumb {
+            width: 1.125rem;
+            height: 1.125rem;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: var(--shadow);
+        }
+
+        .range-value {
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">W</div>
+                <h1 class="logo-text">多模态水印工具</h1>
+            </div>
+            <p class="subtitle">支持文本、图像、音频、视频四种模态的智能水印嵌入与提取</p>
+        </header>
+
+        <!-- Main Layout -->
+        <div class="main-layout">
+            <!-- Left Panel - Input -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">处理设置</h2>
+                    <p class="card-description">选择处理模态和配置参数</p>
+                </div>
+                <div class="card-content">
+                    <!-- Modality Selection -->
+                    <div class="form-group">
+                        <label class="form-label">处理模态</label>
+                        <div class="modality-grid">
+                            <div class="modality-card active" data-modality="text">
+                                <span class="modality-icon">📝</span>
+                                <span class="modality-name">文本</span>
+                            </div>
+                            <div class="modality-card" data-modality="image">
+                                <span class="modality-icon">🖼️</span>
+                                <span class="modality-name">图像</span>
+                            </div>
+                            <div class="modality-card" data-modality="audio">
+                                <span class="modality-icon">🎵</span>
+                                <span class="modality-name">音频</span>
+                            </div>
+                            <div class="modality-card" data-modality="video">
+                                <span class="modality-icon">🎬</span>
+                                <span class="modality-name">视频</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Operation Mode -->
+                    <div class="form-group">
+                        <label class="form-label">操作模式</label>
+                        <div class="operation-mode" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                            <label class="radio-card active">
+                                <input type="radio" name="operation" value="embed" checked style="display: none;">
+                                <span class="radio-content">
+                                    <span class="radio-icon">✨</span>
+                                    <span class="radio-text">嵌入水印</span>
+                                </span>
+                            </label>
+                            <label class="radio-card">
+                                <input type="radio" name="operation" value="extract" style="display: none;">
+                                <span class="radio-content">
+                                    <span class="radio-icon">🔍</span>
+                                    <span class="radio-text">提取水印</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Input Content -->
+                    <div class="input-grid">
+                        <!-- Embed Mode Inputs -->
+                        <div id="embed-inputs">
+                            <div class="form-group">
+                                <label class="form-label" for="prompt-input">内容提示词</label>
+                                <textarea id="prompt-input" class="form-textarea" 
+                                        placeholder="请输入提示词或描述内容..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="message-input">水印消息</label>
+                                <input type="text" id="message-input" class="form-input" 
+                                       placeholder="要嵌入的水印信息..." value="demo_watermark_2025">
+                            </div>
+                        </div>
+
+                        <!-- Extract Mode Inputs -->
+                        <div id="extract-inputs" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">上传待检测文件</label>
+                                <div class="file-upload-area" id="file-upload-area">
+                                    <div class="upload-placeholder">
+                                        <div class="upload-icon">📁</div>
+                                        <div class="upload-text">
+                                            <p>点击或拖拽文件到此处</p>
+                                            <p class="upload-hint" id="upload-hint">支持文本、图像、音频、视频文件</p>
+                                        </div>
+                                    </div>
+                                    <input type="file" id="file-input" style="display: none;" accept="*/*">
+                                </div>
+                                <div class="file-info" id="file-info" style="display: none;">
+                                    <div class="file-details">
+                                        <span class="file-name" id="file-name">文件名.txt</span>
+                                        <span class="file-size" id="file-size">1.2KB</span>
+                                    </div>
+                                    <button class="remove-file" id="remove-file" type="button">×</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Options -->
+                    <div class="advanced-section">
+                        <label class="form-label">高级选项</label>
+                        
+                        <!-- Text Options -->
+                        <div class="option-grid" id="text-options">
+                            <div class="form-group">
+                                <label class="form-label">生成模式</label>
+                                <select class="form-select">
+                                    <option value="lm">高质量模式</option>
+                                    <option value="random">高效率模式</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">最大长度</label>
+                                <input type="number" class="form-input" value="110" min="50" max="500">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">生成温度</label>
+                                <div class="range-container">
+                                    <input type="range" class="form-range" min="0.1" max="1.0" step="0.1" value="0.7">
+                                    <div class="range-value">0.7</div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">消息分割</label>
+                                <select class="form-select">
+                                    <option value="auto">自动模式</option>
+                                    <option value="smart">智能分割</option>
+                                    <option value="whole">整体处理</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Image Options -->
+                        <div class="option-grid" id="image-options" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">图像分辨率</label>
+                                <select class="form-select">
+                                    <option value="512">512x512</option>
+                                    <option value="768">768x768</option>
+                                    <option value="1024">1024x1024</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">推理步数</label>
+                                <div class="range-container">
+                                    <input type="range" class="form-range" min="20" max="100" step="10" value="50">
+                                    <div class="range-value">50</div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">引导强度</label>
+                                <div class="range-container">
+                                    <input type="range" class="form-range" min="1" max="20" step="0.5" value="7.5">
+                                    <div class="range-value">7.5</div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">水印算法</label>
+                                <select class="form-select">
+                                    <option value="videoseal">VideoSeal</option>
+                                    <option value="prc">PRC-Watermark</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Audio Options -->
+                        <div class="option-grid" id="audio-options" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">语音预设</label>
+                                <select class="form-select">
+                                    <option value="v2/en_speaker_6">英语男声</option>
+                                    <option value="v2/en_speaker_9">英语女声</option>
+                                    <option value="v2/zh_speaker_0">中文男声</option>
+                                    <option value="v2/zh_speaker_4">中文女声</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">水印强度</label>
+                                <div class="range-container">
+                                    <input type="range" class="form-range" min="0.1" max="2.0" step="0.1" value="1.0">
+                                    <div class="range-value">1.0</div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">生成温度</label>
+                                <div class="range-container">
+                                    <input type="range" class="form-range" min="0.1" max="1.0" step="0.1" value="0.8">
+                                    <div class="range-value">0.8</div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">采样率</label>
+                                <select class="form-select">
+                                    <option value="16000">16kHz</option>
+                                    <option value="22050">22.05kHz</option>
+                                    <option value="44100">44.1kHz</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Video Options -->
+                        <div class="option-grid" id="video-options" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">视频帧数</label>
+                                <select class="form-select">
+                                    <option value="13">13帧 (0.9秒)</option>
+                                    <option value="25">25帧 (1.7秒)</option>
+                                    <option value="49">49帧 (3.3秒)</option>
+                                    <option value="75">75帧 (5.0秒)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">视频分辨率</label>
+                                <select class="form-select">
+                                    <option value="320x512">320x512</option>
+                                    <option value="512x768">512x768</option>
+                                    <option value="720x1280">720x1280</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">推理步数</label>
+                                <div class="range-container">
+                                    <input type="range" class="form-range" min="20" max="50" step="5" value="30">
+                                    <div class="range-value">30</div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">引导强度</label>
+                                <div class="range-container">
+                                    <input type="range" class="form-range" min="1" max="15" step="0.5" value="6.0">
+                                    <div class="range-value">6.0</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="embed-btn">
+                            <span>✨</span>
+                            <span>嵌入水印</span>
+                        </button>
+                        <button class="btn btn-secondary" id="extract-btn">
+                            <span>🔍</span>
+                            <span>提取水印</span>
+                        </button>
+                        <button class="btn btn-secondary" id="clear-btn">
+                            <span>🔄</span>
+                            <span>重置</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Results -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">处理结果</h2>
+                    <p class="card-description">查看处理状态和结果输出</p>
+                </div>
+                <div class="card-content">
+                    <!-- Default Placeholder -->
+                    <div class="result-placeholder" id="result-placeholder">
+                        <div class="result-placeholder-icon">🎯</div>
+                        <div>
+                            <h3>等待处理</h3>
+                            <p>选择模态并输入内容，点击相应按钮开始处理</p>
+                        </div>
+                    </div>
+
+                    <!-- Result Content -->
+                    <div class="result-content" id="result-content">
+                        <!-- Progress Bar -->
+                        <div class="progress-container" id="progress-container">
+                            <div class="progress-header">
+                                <span class="progress-text" id="progress-text">初始化...</span>
+                                <span class="progress-percent" id="progress-percent">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progress-fill"></div>
+                            </div>
+                        </div>
+
+                        <!-- Media Preview -->
+                        <div class="media-preview" id="media-preview" style="display: none;">
+                            <div style="color: #94a3b8;">预览内容将在这里显示</div>
+                        </div>
+
+                        <!-- Result Info -->
+                        <div class="result-info" id="result-info">
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <span class="info-label">处理状态</span>
+                                    <span class="status-badge status-processing" id="status-badge">
+                                        <span class="loading-spinner"></span>
+                                        处理中
+                                    </span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">水印消息</span>
+                                    <span class="info-value" id="result-message">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">置信度</span>
+                                    <span class="info-value" id="result-confidence">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">处理时间</span>
+                                    <span class="info-value" id="result-time">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">算法</span>
+                                    <span class="info-value" id="result-algorithm">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">质量指标</span>
+                                    <span class="info-value" id="result-quality">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Result Text Display -->
+                        <div class="result-text" id="result-text" style="display: none; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; font-family: 'Monaco', 'Consolas', monospace; font-size: 0.8rem; line-height: 1.6; white-space: pre-wrap; max-height: 12rem; overflow-y: auto;"></div>
+
+                        <!-- Result Actions -->
+                        <div class="button-group" id="result-actions" style="display: none; margin-top: 1.5rem;">
+                            <button class="btn btn-primary">
+                                <span>💾</span>
+                                <span>下载结果</span>
+                            </button>
+                            <button class="btn btn-secondary">
+                                <span>📋</span>
+                                <span>复制链接</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global Variables
+        let currentModality = 'text';
+        let currentOperation = 'embed';
+        let isProcessing = false;
+        let uploadedFile = null;
+
+        // Modality Configuration
+        const modalityConfig = {
+            text: {
+                name: '文本',
+                placeholders: {
+                    prompt: '请输入文本生成提示词，例如：写一篇关于人工智能的介绍文章',
+                    message: 'demo_text_watermark'
+                }
+            },
+            image: {
+                name: '图像',
+                placeholders: {
+                    prompt: '请输入图像描述，例如：a beautiful cat under sunshine',
+                    message: 'demo_image_watermark'
+                }
+            },
+            audio: {
+                name: '音频',
+                placeholders: {
+                    prompt: '请输入要转换为语音的文本内容',
+                    message: 'demo_audio_watermark'
+                }
+            },
+            video: {
+                name: '视频',
+                placeholders: {
+                    prompt: '请输入视频描述，例如：阳光洒在海面上',
+                    message: 'demo_video_watermark'
+                }
+            }
+        };
+
+        // Initialize App
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+
+        function initializeApp() {
+            setupModalitySelector();
+            setupOperationModeSelector();
+            setupFileUpload();
+            setupRangeSliders();
+            setupButtons();
+            updateInputPlaceholders('text');
+            updateFileUploadHint('text');
+            console.log('多模态水印工具已初始化完成');
+        }
+
+        // Setup Operation Mode Selector
+        function setupOperationModeSelector() {
+            const radioCards = document.querySelectorAll('.radio-card');
+            const radioInputs = document.querySelectorAll('input[name="operation"]');
+            
+            radioCards.forEach((card, index) => {
+                card.addEventListener('click', function() {
+                    const radio = this.querySelector('input[type="radio"]');
+                    const operation = radio.value;
+                    
+                    if (operation !== currentOperation) {
+                        // Update active state
+                        radioCards.forEach(c => c.classList.remove('active'));
+                        this.classList.add('active');
+                        
+                        // Update checked state
+                        radioInputs.forEach(r => r.checked = false);
+                        radio.checked = true;
+                        
+                        // Update current operation
+                        currentOperation = operation;
+                        toggleInputMode(operation);
+                        resetResults();
+                    }
+                });
+            });
+        }
+
+        // Toggle Input Mode
+        function toggleInputMode(operation) {
+            const embedInputs = document.getElementById('embed-inputs');
+            const extractInputs = document.getElementById('extract-inputs');
+            
+            if (operation === 'embed') {
+                embedInputs.style.display = 'block';
+                extractInputs.style.display = 'none';
+            } else {
+                embedInputs.style.display = 'none';
+                extractInputs.style.display = 'block';
+            }
+        }
+
+        // Setup File Upload
+        function setupFileUpload() {
+            const fileUploadArea = document.getElementById('file-upload-area');
+            const fileInput = document.getElementById('file-input');
+            const fileInfo = document.getElementById('file-info');
+            const removeFileBtn = document.getElementById('remove-file');
+            
+            // Click to upload
+            fileUploadArea.addEventListener('click', () => {
+                fileInput.click();
+            });
+            
+            // File selection
+            fileInput.addEventListener('change', handleFileSelect);
+            
+            // Drag and drop
+            fileUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                fileUploadArea.classList.add('dragover');
+            });
+            
+            fileUploadArea.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                fileUploadArea.classList.remove('dragover');
+            });
+            
+            fileUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                fileUploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFile(files[0]);
+                }
+            });
+            
+            // Remove file
+            removeFileBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeFile();
+            });
+        }
+
+        // Handle File Selection
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        // Handle File
+        function handleFile(file) {
+            uploadedFile = file;
+            
+            // Show file info
+            document.getElementById('file-upload-area').style.display = 'none';
+            document.getElementById('file-info').style.display = 'flex';
+            document.getElementById('file-name').textContent = file.name;
+            document.getElementById('file-size').textContent = formatFileSize(file.size);
+        }
+
+        // Remove File
+        function removeFile() {
+            uploadedFile = null;
+            document.getElementById('file-upload-area').style.display = 'block';
+            document.getElementById('file-info').style.display = 'none';
+            document.getElementById('file-input').value = '';
+        }
+
+        // Format File Size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Update File Upload Hint
+        function updateFileUploadHint(modality) {
+            const hints = {
+                text: '支持 .txt, .doc, .docx, .pdf 等文本文件',
+                image: '支持 .jpg, .jpeg, .png, .gif, .bmp 等图像文件',
+                audio: '支持 .mp3, .wav, .flac, .aac 等音频文件',
+                video: '支持 .mp4, .avi, .mov, .mkv 等视频文件'
+            };
+            
+            const hintElement = document.getElementById('upload-hint');
+            if (hintElement) {
+                hintElement.textContent = hints[modality];
+            }
+        }
+        function setupModalitySelector() {
+            const modalityCards = document.querySelectorAll('.modality-card');
+            modalityCards.forEach(card => {
+                card.addEventListener('click', function() {
+                    const modality = this.dataset.modality;
+                    if (modality !== currentModality) {
+                        // Update active state
+                        modalityCards.forEach(c => c.classList.remove('active'));
+                        this.classList.add('active');
+                        
+                        // Update current modality
+                        currentModality = modality;
+                        updateAdvancedOptions(modality);
+                        updateInputPlaceholders(modality);
+                        updateFileUploadHint(modality);
+                        resetResults();
+                    }
+                });
+            });
+        }
+
+        // Update Advanced Options
+        function updateAdvancedOptions(modality) {
+            // Hide all options
+            const allOptions = ['text-options', 'image-options', 'audio-options', 'video-options'];
+            allOptions.forEach(optionId => {
+                const element = document.getElementById(optionId);
+                if (element) {
+                    element.style.display = 'none';
+                }
+            });
+            
+            // Show current modality options
+            const targetOption = document.getElementById(`${modality}-options`);
+            if (targetOption) {
+                targetOption.style.display = 'grid';
+            }
+        }
+
+        // Update Input Placeholders
+        function updateInputPlaceholders(modality) {
+            const config = modalityConfig[modality];
+            document.getElementById('prompt-input').placeholder = config.placeholders.prompt;
+            document.getElementById('message-input').value = config.placeholders.message;
+        }
+
+        // Setup Range Sliders
+        function setupRangeSliders() {
+            document.querySelectorAll('.form-range').forEach(slider => {
+                const updateValue = () => {
+                    const valueDisplay = slider.parentElement.querySelector('.range-value');
+                    if (valueDisplay) {
+                        valueDisplay.textContent = slider.value;
+                    }
+                };
+                
+                slider.addEventListener('input', updateValue);
+                updateValue(); // Initialize display
+            });
+        }
+
+        // Setup Buttons
+        function setupButtons() {
+            document.getElementById('embed-btn').addEventListener('click', () => {
+                if (!isProcessing) {
+                    startProcessing('embed');
+                }
+            });
+            
+            document.getElementById('extract-btn').addEventListener('click', () => {
+                if (!isProcessing) {
+                    startProcessing('extract');
+                }
+            });
+            
+            document.getElementById('clear-btn').addEventListener('click', () => {
+                clearAll();
+            });
+        }
+
+        // Start Processing
+        function startProcessing(operation) {
+            if (isProcessing) return;
+            
+            // Validate inputs based on operation
+            if (operation === 'extract' && !uploadedFile) {
+                alert('请先上传要检测的文件');
+                return;
+            }
+            
+            if (operation === 'embed' && !document.getElementById('prompt-input').value.trim()) {
+                alert('请输入内容提示词');
+                return;
+            }
+            
+            isProcessing = true;
+            
+            // Disable buttons
+            const embedBtn = document.getElementById('embed-btn');
+            const extractBtn = document.getElementById('extract-btn');
+            embedBtn.disabled = true;
+            extractBtn.disabled = true;
+            
+            // Update button state
+            if (operation === 'embed') {
+                embedBtn.innerHTML = '<span class="loading-spinner"></span><span>嵌入中...</span>';
+            } else {
+                extractBtn.innerHTML = '<span class="loading-spinner"></span><span>检测中...</span>';
+            }
+            
+            // Show results area
+            showResults();
+            
+            // Start progress simulation
+            simulateProgress(operation);
+        }
+
+        // Show Results
+        function showResults() {
+            document.getElementById('result-placeholder').style.display = 'none';
+            document.getElementById('result-content').classList.add('active');
+            document.getElementById('progress-container').style.display = 'block';
+            
+            // Reset result info
+            document.getElementById('result-message').textContent = '-';
+            document.getElementById('result-confidence').textContent = '-';
+            document.getElementById('result-time').textContent = '-';
+            document.getElementById('result-algorithm').textContent = '-';
+            document.getElementById('result-quality').textContent = '-';
+            
+            // Hide result actions and media preview
+            document.getElementById('result-actions').style.display = 'none';
+            document.getElementById('media-preview').style.display = 'none';
+            document.getElementById('result-text').style.display = 'none';
+        }
+
+        // Simulate Processing Progress
+        function simulateProgress(operation) {
+            const progressFill = document.getElementById('progress-fill');
+            const progressPercent = document.getElementById('progress-percent');
+            const progressText = document.getElementById('progress-text');
+            
+            let progress = 0;
+            const steps = [
+                { text: '初始化模型...', maxProgress: 20 },
+                { text: '加载数据...', maxProgress: 40 },
+                { text: `${operation === 'embed' ? '嵌入水印' : '检测水印'}...`, maxProgress: 80 },
+                { text: '生成结果...', maxProgress: 100 }
+            ];
+            
+            let currentStep = 0;
+            
+            const interval = setInterval(() => {
+                progress += Math.random() * 8 + 2;
+                
+                // Check if need to switch step
+                if (progress >= steps[currentStep].maxProgress && currentStep < steps.length - 1) {
+                    currentStep++;
+                    progressText.textContent = steps[currentStep].text;
+                }
+                
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    
+                    // Complete processing
+                    setTimeout(() => {
+                        completeProcessing(operation);
+                    }, 500);
+                }
+                
+                progressFill.style.width = progress + '%';
+                progressPercent.textContent = Math.round(progress) + '%';
+            }, 150);
+        }
+
+        // Complete Processing
+        function completeProcessing(operation) {
+            isProcessing = false;
+            
+            // Restore button state
+            const embedBtn = document.getElementById('embed-btn');
+            const extractBtn = document.getElementById('extract-btn');
+            embedBtn.disabled = false;
+            extractBtn.disabled = false;
+            embedBtn.innerHTML = '<span>✨</span><span>嵌入水印</span>';
+            extractBtn.innerHTML = '<span>🔍</span><span>提取水印</span>';
+            
+            // Hide progress bar
+            document.getElementById('progress-container').style.display = 'none';
+            
+            // Update status badge
+            const statusBadge = document.getElementById('status-badge');
+            statusBadge.className = 'status-badge status-success';
+            statusBadge.innerHTML = '✓ 处理完成';
+            
+            // Show result info
+            const messageInput = document.getElementById('message-input');
+            document.getElementById('result-message').textContent = messageInput.value || 'demo_watermark';
+            document.getElementById('result-confidence').textContent = '95.2%';
+            document.getElementById('result-time').textContent = '3.8秒';
+            document.getElementById('result-algorithm').textContent = getCurrentAlgorithm();
+            document.getElementById('result-quality').textContent = getQualityMetric();
+            
+            // Show modality-specific result
+            showModalitySpecificResult(operation);
+            
+            // Show action buttons
+            document.getElementById('result-actions').style.display = 'flex';
+        }
+
+        // Show Modality Specific Result
+        function showModalitySpecificResult(operation) {
+            const promptInput = document.getElementById('prompt-input');
+            
+            switch (currentModality) {
+                case 'text':
+                    const resultText = document.getElementById('result-text');
+                    if (operation === 'embed') {
+                        resultText.textContent = `基于提示词"${promptInput.value || '示例提示'}"生成的带水印文本：
+
+人工智能技术正在快速发展，为各个领域带来了革命性的变化。在这个数字化时代，我们需要更好地理解和应用AI技术，以推动社会进步和经济发展。通过合理的规划和实施，人工智能将成为解决复杂问题的重要工具...`;
+                    } else {
+                        resultText.textContent = `水印提取结果：
+
+检测到水印信息："${document.getElementById('message-input').value}"
+置信度：95.2%
+算法：CredID
+处理模式：LM模式`;
+                    }
+                    resultText.style.display = 'block';
+                    break;
+                    
+                case 'image':
+                    showMediaPreview('image', 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImEiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiM2MzY2ZjEiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiMwNmI2ZDQiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2EpIi8+PHRleHQgeD0iNTAlIiB5PSI0NSUiIGZvbnQtZmFtaWx5PSJJbnRlciwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyMCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkdlbmVyYXRlZCBJbWFnZTwvdGV4dD48dGV4dCB4PSI1MCUiIHk9IjYwJSIgZm9udC1mYW1pbHk9IkludGVyLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgb3BhY2l0eT0iMC44Ij53aXRoIFdhdGVybWFyazwvdGV4dD48L3N2Zz4=');
+                    break;
+                    
+                case 'audio':
+                    const audioPreview = document.getElementById('media-preview');
+                    audioPreview.innerHTML = '<div style="color: var(--text-secondary); text-align: center;"><div style="font-size: 2rem; margin-bottom: 0.5rem;">🎵</div><div style="font-size: 1rem; font-weight: 500;">音频处理结果已生成<br><span style="font-size: 0.875rem; opacity: 0.7;">SNR: 44.5dB | 时长: 3.2秒</span></div></div>';
+                    audioPreview.style.display = 'flex';
+                    break;
+                    
+                case 'video':
+                    const videoPreview = document.getElementById('media-preview');
+                    videoPreview.innerHTML = '<div style="color: var(--text-secondary); text-align: center;"><div style="font-size: 2rem; margin-bottom: 0.5rem;">🎬</div><div style="font-size: 1rem; font-weight: 500;">视频生成完成<br><span style="font-size: 0.875rem; opacity: 0.7;">49帧 | 512x768 | 3.3秒</span></div></div>';
+                    videoPreview.style.display = 'flex';
+                    break;
+            }
+        }
+
+        // Show Media Preview
+        function showMediaPreview(type, content) {
+            const mediaPreview = document.getElementById('media-preview');
+            
+            if (type === 'image') {
+                mediaPreview.innerHTML = `<img src="${content}" alt="处理结果" style="border-radius: var(--radius-sm);">`;
+                mediaPreview.style.display = 'flex';
+            }
+        }
+
+        // Get Current Algorithm
+        function getCurrentAlgorithm() {
+            const algorithms = {
+                text: 'CredID',
+                image: 'VideoSeal',
+                audio: 'AudioSeal',
+                video: 'HunyuanVideo'
+            };
+            return algorithms[currentModality];
+        }
+
+        // Get Quality Metric
+        function getQualityMetric() {
+            const metrics = {
+                text: 'BLEU: 0.85',
+                image: '100% 检测率',
+                audio: 'SNR: 44.5dB',
+                video: '49帧, 512x768'
+            };
+            return metrics[currentModality];
+        }
+
+        // Reset Results
+        function resetResults() {
+            document.getElementById('result-placeholder').style.display = 'flex';
+            document.getElementById('result-content').classList.remove('active');
+        }
+
+        // Clear All
+        function clearAll() {
+            // Reset input fields
+            document.getElementById('prompt-input').value = '';
+            document.getElementById('message-input').value = modalityConfig[currentModality].placeholders.message;
+            
+            // Reset results
+            resetResults();
+            
+            console.log('已重置所有内容');
+        }
+
+        // Page Load Complete
+        window.addEventListener('load', function() {
+            console.log('多模态水印工具已完全加载');
+        });
+    </script>
+</body>
+</html>

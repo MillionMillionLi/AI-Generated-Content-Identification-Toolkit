@@ -9,52 +9,56 @@
 - **音频水印**：基于AudioSeal算法，完整集成Bark文本转语音，支持多语言高质量语音生成
 - **统一接口**：提供一致的嵌入和提取API
 
-## 📁 简化目录结构
+## 📁 目录结构与层级关系（当前实现）
 
 ```
-mmwt/                           # 多模态水印工具
-├── README.md
-├── requirements.txt
-├── setup.py
+unified_watermark_tool/
 ├── config/
-│   ├── text_config.yaml       # 文本水印配置
-│   └── image_config.yaml      # 图像水印配置
+│   ├── default_config.yaml
+│   └── text_config.yaml                # 文本水印配置
 ├── src/
 │   ├── __init__.py
-│   ├── unified/
-│   │   └── watermark_tool.py   # 统一水印工具（已实现）
-│   ├── text_watermark/
+│   ├── unified/                        # 统一引擎与高层门面
+│   │   ├── unified_engine.py           # UnifiedWatermarkEngine（text/image/audio/video）
+│   │   └── watermark_tool.py           # 高层封装：推荐入口（embed/extract统一API）
+│   ├── text_watermark/                 # 文本水印（CredID）
 │   │   ├── __init__.py
-│   │   ├── credid_watermark.py # CredID算法封装
-│   │   └── credid/             # CredID算法实现（从原项目复制）
-│   ├── image_watermark/
+│   │   ├── credid_watermark.py         # CredID算法高级封装
+│   │   └── credid/                     # CredID框架（watermarking/attacks/...）
+│   ├── image_watermark/                # 图像水印
 │   │   ├── __init__.py
-│   │   ├── prc_watermark.py # PRC算法封装
-│   │   └── prc/         # PRC实现（从原项目复制）
-│   ├── audio_watermark/
+│   │   ├── image_watermark.py          # 统一图像接口（默认VideoSeal后端）
+│   │   ├── prc_watermark.py            # PRC 封装
+│   │   ├── PRC-Watermark/              # PRC 实现
+│   │   └── videoseal_image_watermark.py# VideoSeal 图像封装
+│   ├── audio_watermark/                # 音频水印
 │   │   ├── __init__.py
-│   │   ├── audioseal_wrapper.py # AudioSeal算法封装（16位消息编码，3D张量处理）
-│   │   ├── bark_generator.py    # Bark文本转语音（智能缓存管理，本地优先）
-│   │   ├── audio_watermark.py   # 音频水印统一接口（批处理，质量评估）
-│   │   ├── utils.py            # 音频处理工具（I/O，质量评估，噪声测试）
-│   │   └── audioseal/          # AudioSeal算法实现（Meta官方）
-│   └── utils/
-│       ├── __init__.py
-│       ├── config_loader.py    # 配置加载
-│       └── model_manager.py    # 模型管理
-├── examples/
-│   ├── text_demo.py           # 文本水印演示
-│   ├── image_demo.py          # 图像水印演示
-│   ├── audio_demo.py          # 音频水印演示
-│   └── unified_demo.py        # 统一接口演示
+│   │   ├── audio_watermark.py          # 统一音频接口（AudioSeal）
+│   │   ├── audioseal_wrapper.py        # AudioSeal封装
+│   │   ├── bark_generator.py           # 可选 Bark TTS
+│   │   ├── utils.py                    # 音频I/O与质量评估
+│   │   └── audioseal/                  # AudioSeal 实现
+│   ├── video_watermark/                # 视频水印
+│   │   ├── __init__.py
+│   │   ├── video_watermark.py          # 统一视频接口（HunyuanVideo + VideoSeal）
+│   │   ├── hunyuan_video_generator.py  # 文生视频生成（本地快照离线优先）
+│   │   ├── model_manager.py            # 视频模型管理
+│   │   ├── videoseal_wrapper.py        # VideoSeal 嵌入/检测封装
+│   │   └── utils.py                    # 视频I/O与工具
+│   └── utils/                          # 通用工具（如有）
 ├── tests/
-│   ├── test_text_watermark.py
-│   ├── test_image_watermark.py
-│   ├── test_audio_watermark.py  # 完整音频水印测试套件（100%成功率）
-│   └── test_video_watermark_demo.py
-├── audio_watermark_demo.py      # 音频水印端到端演示脚本
-└── models/                    # 预训练模型存储
+│   ├── test_unified_engine.py          # 统一引擎回归（可只测文本）
+│   └── test_video_watermark_demo.py    # 视频端到端演示测试
+├── examples/                           # 用法示例（可选）
+├── audio_watermark_demo.py             # 音频端到端演示
+└── models/                             # 建议的本地模型缓存目录（离线优先）
 ```
+
+层级关系（自顶向下）：
+- 应用层：`WatermarkTool`（推荐调用入口）
+- 引擎层：`UnifiedWatermarkEngine`（统一路由 text/image/audio/video）
+- 算法层：`text_watermark`、`image_watermark`、`audio_watermark`、`video_watermark`
+- 工具层：`utils`、各模态内部的 I/O、模型管理
 
 ## 🏗️ 核心架构设计
 
@@ -66,160 +70,50 @@ mmwt/                           # 多模态水印工具
 3. **算法实现层**：具体的水印算法封装和实现
 4. **配置和工具层**：配置管理、模型管理等支持组件
 
-### 1. 统一水印引擎 (WatermarkEngine)
+### 1. 统一水印引擎（UnifiedWatermarkEngine）
 
-**设计理念**：
-- **单一入口**：用户只需要与WatermarkEngine交互，无需关心底层实现
-- **懒加载**：只有在实际使用时才加载对应的算法模块，节省内存
-- **配置驱动**：通过配置文件管理不同算法的参数
+位置：`src/unified/unified_engine.py`（高层封装请使用 `src/unified/watermark_tool.py`）
 
-**核心实现**：
+核心特性：
+- 单一入口 + 懒加载：`embed(prompt, message, modality, **kwargs)` 与 `extract(content, modality, **kwargs)` 统一四模态接口，按需加载模块
+- 默认算法：`text=credid`, `image=videoseal`, `audio=audioseal`, `video=hunyuan+videoseal`
+- 离线优先：文本水印在首次使用时尝试从本地缓存加载模型/分词器（优先配置的模型，其次回退 `sshleifer/tiny-gpt2`）
+- 配置驱动：读取 `config/text_config.yaml`、图像/音频/视频的各自配置（如分辨率、检测参数等）
+
+最简用法（推荐通过 `WatermarkTool`）:
 
 ```python
-# src/watermark_engine.py
-import os
-import yaml
-from typing import Optional, Dict, Any
+from src.unified.watermark_tool import WatermarkTool
 
-class WatermarkEngine:
-    """
-    多模态水印统一引擎
-    
-    功能职责：
-    1. 提供统一的文本和图像水印接口
-    2. 管理算法模块的懒加载
-    3. 处理配置文件的加载和验证
-    4. 协调不同模态间的操作
-    """
-    
-    def __init__(self, base_dir: str = "."):
-        """
-        初始化水印引擎
-        
-        Args:
-            base_dir: 项目根目录，用于定位配置文件
-        """
-        self.base_dir = base_dir
-        self.text_watermark = None      # 文本水印模块实例
-        self.image_watermark = None     # 图像水印模块实例
-        self._config_cache = {}         # 配置文件缓存
-    
-    def _load_config(self, config_path: str) -> Dict[str, Any]:
-        """
-        加载并缓存配置文件
-        
-        Args:
-            config_path: 配置文件路径
-            
-        Returns:
-            解析后的配置字典
-        """
-        if config_path not in self._config_cache:
-            full_path = os.path.join(self.base_dir, config_path)
-            with open(full_path, 'r', encoding='utf-8') as f:
-                self._config_cache[config_path] = yaml.safe_load(f)
-        return self._config_cache[config_path]
-    
-    def setup_text_watermark(self, config_path: str = "config/text_config.yaml"):
-        """
-        初始化文本水印模块
-        
-        Args:
-            config_path: 文本水印配置文件路径
-        """
-        from .text_watermark.credid_watermark import CredIDWatermark
-        config = self._load_config(config_path)
-        self.text_watermark = CredIDWatermark(config)
-    
-    def setup_image_watermark(self, config_path: str = "config/image_config.yaml"):
-        """
-        初始化图像水印模块
-        
-        Args:
-            config_path: 图像水印配置文件路径
-        """
-        from .image_watermark.stable_signature import StableSignatureWatermark
-        config = self._load_config(config_path)
-        self.image_watermark = StableSignatureWatermark(config)
-    
-    # === 文本水印接口 ===
-    def embed_text(self, model, tokenizer, prompt: str, message: str) -> Dict[str, Any]:
-        """
-        嵌入文本水印
-        
-        Args:
-            model: 预训练语言模型 (HuggingFace model)
-            tokenizer: 对应的分词器
-            prompt: 输入提示文本
-            message: 要嵌入的水印信息
-            
-        Returns:
-            包含水印文本和元数据的字典
-        """
-        if not self.text_watermark:
-            self.setup_text_watermark()
-        return self.text_watermark.embed(model, tokenizer, prompt, message)
-    
-    def extract_text(self, watermarked_text: str) -> Dict[str, Any]:
-        """
-        提取文本水印
-        
-        Args:
-            watermarked_text: 带有水印的文本
-            
-        Returns:
-            包含提取信息和置信度的字典
-        """
-        if not self.text_watermark:
-            self.setup_text_watermark()
-        return self.text_watermark.extract(watermarked_text)
-    
-    # === 图像水印接口 ===
-    def embed_image(self, model, prompt: str, message: str) -> Dict[str, Any]:
-        """
-        嵌入图像水印
-        
-        Args:
-            model: 扩散模型 (如 Stable Diffusion)
-            prompt: 图像生成提示词
-            message: 要嵌入的水印信息
-            
-        Returns:
-            包含水印图像和元数据的字典
-        """
-        if not self.image_watermark:
-            self.setup_image_watermark()
-        return self.image_watermark.embed(model, prompt, message)
-    
-    def extract_image(self, watermarked_image) -> Dict[str, Any]:
-        """
-        提取图像水印
-        
-        Args:
-            watermarked_image: 带有水印的图像 (PIL Image 或路径)
-            
-        Returns:
-            包含提取信息和置信度的字典
-        """
-        if not self.image_watermark:
-            self.setup_image_watermark()
-        return self.image_watermark.extract(watermarked_image)
-    
-    # === 工具方法 ===
-    def get_config(self, config_type: str) -> Dict[str, Any]:
-        """获取指定类型的配置"""
-        config_map = {
-            'text': 'config/text_config.yaml',
-            'image': 'config/image_config.yaml'
-        }
-        return self._load_config(config_map[config_type])
-    
-    def reset(self):
-        """重置引擎，清空缓存"""
-        self.text_watermark = None
-        self.image_watermark = None
-        self._config_cache.clear()
+tool = WatermarkTool()
+
+# 文本（若本地缓存已就绪，将自动加载并缓存模型/分词器）
+watermarked_text = tool.embed("这是测试文本", "wm_msg", 'text')
+text_result = tool.extract(watermarked_text, 'text')
+
+# 图像（VideoSeal为默认后端，可直接返回PIL.Image）
+img = tool.embed("a cat under the sun", "hello_vs", 'image')
+img_res = tool.extract(img, 'image')
+
+# 音频（支持指定 output_path 持久化保存）
+audio_out = tool.embed("audio content", "hello_audio", 'audio', output_path="outputs/audio/a.wav")
+audio_res = tool.extract(audio_out, 'audio')
+
+# 视频（生成+嵌入，默认保存到 tests/test_results/ 或自定义路径）
+video_path = tool.embed("阳光洒在海面上", "video_wm", 'video')
+video_res = tool.extract(video_path, 'video')
 ```
+
+重要参数与返回：
+- 文本 `embed(prompt, message, 'text', model=None, tokenizer=None)` → `str`（自动使用引擎缓存的模型/分词器；若离线未就绪会抛错）
+- 图像 `embed(prompt, message, 'image', image_input=None, **kwargs)` → `PIL.Image`
+- 音频 `embed('audio content', message, 'audio', audio_input=tensor|path, output_path=None)` → `torch.Tensor | str`
+- 视频 `embed(prompt, message, 'video', output_path=None, **kwargs)` → `str`
+- 各模态 `extract(...)` → 统一字典：`{detected: bool, message: str, confidence: float, metadata: dict}`
+
+离线/缓存建议：
+- 设置 `TRANSFORMERS_OFFLINE=1`、`HF_HUB_OFFLINE=1`，并将本地模型缓存放在 `models/` 或通过 `HF_HOME`/`HF_HUB_CACHE` 指向
+- 文本默认读取 `config/text_config.yaml` 的 `model_name`；若缓存未命中，将回退尝试 `sshleifer/tiny-gpt2`（同样离线加载）
 
 ### 2. 文本水印模块 (CredID Algorithm) ✅ **已实现**
 

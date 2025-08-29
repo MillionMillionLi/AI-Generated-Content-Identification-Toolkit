@@ -1,0 +1,25 @@
+# Web Demo 专用依赖
+# 基础Web框架
+flask==2.3.3
+flask-cors==4.0.0
+
+# 文件处理
+Werkzeug==2.3.7
+
+# 异步任务处理（可选，用于处理长时间任务）
+# celery==5.3.4
+# redis==5.0.1
+
+# 其他工具依赖
+python-dotenv==1.0.0
+
+# 现有项目的核心依赖（请确保这些已安装）
+# torch>=2.0.0
+# torchaudio
+# transformers
+# diffusers==0.34
+# Pillow
+# numpy
+# scipy
+# librosa
+# soundfile

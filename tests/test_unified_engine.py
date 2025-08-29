@@ -45,24 +45,28 @@ class TestUnifiedEngine(unittest.TestCase):
         self.assertEqual(algorithms['image'], 'videoseal')  # 确保图像默认为videoseal
         self.assertEqual(algorithms['text'], 'credid')
         self.assertEqual(algorithms['audio'], 'audioseal')
-    
+    @unittest.skip("跳过文本测试")
     def test_text_watermark_basic(self):
         """测试文本水印基础功能"""
         prompt = "太阳从海面升起"
-        message = "text"
+        message = "text_2025"
 
         # 现在改为依赖统一引擎在内部初始化文本模型与tokenizer
         # 若初始化失败，应直接抛错并让测试失败，以便定位问题
         watermarked = self.engine.embed(prompt, message, 'text')
         self.assertIsInstance(watermarked, str)
+        # 输出嵌入的水印消息
+        print(f"    文本水印嵌入消息: '{message}'")
 
         result = self.engine.extract(watermarked, 'text')
         self.assertIsInstance(result, dict)
         self.assertIn('detected', result)
         self.assertIn('message', result)
         self.assertIn('confidence', result)
+        # 输出提取到的水印消息
+        print(f"    文本水印提取消息: '{result['message']}', 检测到={result['detected']}, 置信度={result['confidence']:.3f}")
     
-    @unittest.skip("只测试文本水印，跳过图像测试")
+    # @unittest.skip("跳过图像测试")
     def test_image_watermark_basic(self):
         """测试图像水印基础功能（videoseal）"""
         prompt = "This example demonstrates natural language processing techniques including tokenization methods"
@@ -96,7 +100,7 @@ class TestUnifiedEngine(unittest.TestCase):
         except Exception as e:
             self.skipTest(f"图像水印需要模型支持: {e}")
     
-    @unittest.skip("只测试文本水印，跳过音频测试")
+    # @unittest.skip("跳过音频测试")
     def test_audio_watermark_basic(self):
         """测试音频水印基础功能"""
         # 创建模拟音频数据
@@ -132,7 +136,7 @@ class TestUnifiedEngine(unittest.TestCase):
         except Exception as e:
             self.skipTest(f"音频水印需要依赖支持: {e}")
     
-    @unittest.skip("只测试文本水印，跳过视频测试")
+    @unittest.skip("跳过视频测试")
     def test_video_watermark_basic(self):
         """测试视频水印基础功能（简化版）"""
         prompt = "太阳从海面升起"

@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多模态水印工具 - Web Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #a5b4fc;
+            --secondary: #06b6d4;
+            --accent: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            
+            --gray-50: #f8fafc;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+            --gray-300: #cbd5e1;
+            --gray-400: #94a3b8;
+            --gray-500: #64748b;
+            --gray-600: #475569;
+            --gray-700: #334155;
+            --gray-800: #1e293b;
+            --gray-900: #0f172a;
+            
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #f1f5f9;
+            
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-tertiary: #64748b;
+            
+            --border: #e2e8f0;
+            --border-light: #f1f5f9;
+            
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            
+            --radius: 0.75rem;
+            --radius-sm: 0.5rem;
+            --radius-lg: 1rem;
+            
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--text-primary);
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .logo-icon {
+            width: 3rem;
+            height: 3rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1.25rem;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .logo-text {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.125rem;
+            font-weight: 400;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Status indicator */
+        .status-indicator {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            font-weight: 500;
+            z-index: 1000;
+        }
+
+        .status-online {
+            background: rgb(16 185 129 / 0.1);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+        }
+
+        .status-offline {
+            background: rgb(239 68 68 / 0.1);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        /* Main Layout */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-primary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-light);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .card-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-light);
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-tertiary) 100%);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .card-description {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .card-content {
+            padding: 1.5rem;
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input, .form-textarea, .form-select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            font-family: inherit;
+            transition: var(--transition);
+            background: var(--bg-primary);
+        }
+
+        .form-input:focus, .form-textarea:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgb(99 102 241 / 0.1);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 6rem;
+        }
+
+        /* Modality Grid */
+        .modality-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .modality-card {
+            padding: 1rem;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: center;
+            background: var(--bg-primary);
+        }
+
+        .modality-card:hover {
+            border-color: var(--primary-light);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .modality-card.active {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modality-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .modality-name {
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        /* Operation Mode */
+        .radio-card {
+            flex: 1;
+            padding: 1rem;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: center;
+            background: var(--bg-primary);
+        }
+
+        .radio-card:hover {
+            border-color: var(--primary-light);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+
+        .radio-card.active {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+
+        .radio-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .radio-icon {
+            font-size: 1.125rem;
+        }
+
+        /* File Upload Area */
+        .file-upload-area {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            background: var(--bg-tertiary);
+        }
+
+        .file-upload-area:hover {
+            border-color: var(--primary);
+            background: var(--bg-primary);
+        }
+
+        .file-upload-area.dragover {
+            border-color: var(--primary);
+            background: rgb(99 102 241 / 0.05);
+        }
+
+        .upload-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .upload-icon {
+            font-size: 2rem;
+            opacity: 0.6;
+        }
+
+        .upload-text p:first-child {
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .upload-hint {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        /* File Info */
+        .file-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-top: 0.5rem;
+        }
+
+        .file-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+        .file-size {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        .remove-file {
+            background: none;
+            border: none;
+            font-size: 1.25rem;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 50%;
+            transition: var(--transition);
+        }
+
+        .remove-file:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        /* Buttons */
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            flex: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            box-shadow: var(--shadow);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn-secondary {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--bg-tertiary);
+            border-color: var(--primary-light);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Results Area */
+        .result-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 12rem;
+            color: var(--text-tertiary);
+            text-align: center;
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-lg);
+            background: var(--bg-tertiary);
+        }
+
+        .result-placeholder-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.6;
+        }
+
+        .result-placeholder h3 {
+            font-size: 1.125rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .result-content {
+            display: none;
+        }
+
+        .result-content.active {
+            display: block;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            margin-bottom: 1.5rem;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-text {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .progress-percent {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 0.5rem;
+            background: var(--bg-tertiary);
+            border-radius: 0.25rem;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        /* Status Badge */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-processing {
+            background: rgb(99 102 241 / 0.1);
+            color: var(--primary);
+        }
+
+        .status-success {
+            background: rgb(16 185 129 / 0.1);
+            color: var(--accent);
+        }
+
+        .status-error {
+            background: rgb(239 68 68 / 0.1);
+            color: var(--danger);
+        }
+
+        /* Result Info */
+        .result-info {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 500;
+        }
+
+        .info-value {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Media Preview */
+        .media-preview {
+            background: var(--gray-900);
+            border-radius: var(--radius);
+            min-height: 12rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .media-preview img, .media-preview video {
+            max-width: 100%;
+            max-height: 18rem;
+            object-fit: contain;
+        }
+
+        /* Result Text Display */
+        .result-text {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            max-height: 12rem;
+            overflow-y: auto;
+            display: none;
+        }
+
+        /* Loading Spinner */
+        .loading-spinner {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Alert Messages */
+        .alert {
+            padding: 1rem;
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .alert-error {
+            background: rgb(239 68 68 / 0.1);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .alert-success {
+            background: rgb(16 185 129 / 0.1);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+        }
+
+        .alert-warning {
+            background: rgb(245 158 11 / 0.1);
+            color: var(--warning);
+            border: 1px solid var(--warning);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .main-layout {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+
+            .modality-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .logo-text {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Status Indicator -->
+        <div class="status-indicator" id="status-indicator">
+            <span class="loading-spinner"></span> 连接中...
+        </div>
+
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">W</div>
+                <h1 class="logo-text">多模态水印工具</h1>
+            </div>
+            <p class="subtitle">支持文本、图像、音频、视频四种模态的智能水印嵌入与提取</p>
+        </header>
+
+        <!-- Main Layout -->
+        <div class="main-layout">
+            <!-- Left Panel - Input -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">处理设置</h2>
+                    <p class="card-description">选择处理模态和配置参数</p>
+                </div>
+                <div class="card-content">
+                    <!-- Alert Messages -->
+                    <div id="alert-container"></div>
+
+                    <!-- Modality Selection -->
+                    <div class="form-group">
+                        <label class="form-label">处理模态</label>
+                        <div class="modality-grid">
+                            <div class="modality-card active" data-modality="text">
+                                <span class="modality-icon">📝</span>
+                                <span class="modality-name">文本</span>
+                            </div>
+                            <div class="modality-card" data-modality="image">
+                                <span class="modality-icon">🖼️</span>
+                                <span class="modality-name">图像</span>
+                            </div>
+                            <div class="modality-card" data-modality="audio">
+                                <span class="modality-icon">🎵</span>
+                                <span class="modality-name">音频</span>
+                            </div>
+                            <div class="modality-card" data-modality="video">
+                                <span class="modality-icon">🎬</span>
+                                <span class="modality-name">视频</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Operation Mode -->
+                    <div class="form-group">
+                        <label class="form-label">操作模式</label>
+                        <div class="operation-mode" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                            <label class="radio-card active">
+                                <input type="radio" name="operation" value="embed" checked style="display: none;">
+                                <span class="radio-content">
+                                    <span class="radio-icon">✨</span>
+                                    <span class="radio-text">嵌入水印</span>
+                                </span>
+                            </label>
+                            <label class="radio-card">
+                                <input type="radio" name="operation" value="extract" style="display: none;">
+                                <span class="radio-content">
+                                    <span class="radio-icon">🔍</span>
+                                    <span class="radio-text">提取水印</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Input Content -->
+                    <div class="input-grid">
+                        <!-- Embed Mode Inputs -->
+                        <div id="embed-inputs">
+                            <div class="form-group">
+                                <label class="form-label" for="prompt-input">内容提示词</label>
+                                <textarea id="prompt-input" class="form-textarea" 
+                                        placeholder="请输入提示词或描述内容..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="message-input">水印消息</label>
+                                <input type="text" id="message-input" class="form-input" 
+                                       placeholder="要嵌入的水印信息..." value="demo_watermark_2025">
+                            </div>
+                        </div>
+
+                        <!-- Extract Mode Inputs -->
+                        <div id="extract-inputs" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">上传待检测文件</label>
+                                <div class="file-upload-area" id="file-upload-area">
+                                    <div class="upload-placeholder">
+                                        <div class="upload-icon">📁</div>
+                                        <div class="upload-text">
+                                            <p>点击或拖拽文件到此处</p>
+                                            <p class="upload-hint" id="upload-hint">支持文本、图像、音频、视频文件</p>
+                                        </div>
+                                    </div>
+                                    <input type="file" id="file-input" style="display: none;" accept="*/*">
+                                </div>
+                                <div class="file-info" id="file-info" style="display: none;">
+                                    <div class="file-details">
+                                        <span class="file-name" id="file-name">文件名.txt</span>
+                                        <span class="file-size" id="file-size">1.2KB</span>
+                                    </div>
+                                    <button class="remove-file" id="remove-file" type="button">×</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="embed-btn">
+                            <span>✨</span>
+                            <span>嵌入水印</span>
+                        </button>
+                        <button class="btn btn-secondary" id="extract-btn">
+                            <span>🔍</span>
+                            <span>提取水印</span>
+                        </button>
+                        <button class="btn btn-secondary" id="clear-btn">
+                            <span>🔄</span>
+                            <span>重置</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Results -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">处理结果</h2>
+                    <p class="card-description">查看处理状态和结果输出</p>
+                </div>
+                <div class="card-content">
+                    <!-- Default Placeholder -->
+                    <div class="result-placeholder" id="result-placeholder">
+                        <div class="result-placeholder-icon">🎯</div>
+                        <div>
+                            <h3>等待处理</h3>
+                            <p>选择模态并输入内容，点击相应按钮开始处理</p>
+                        </div>
+                    </div>
+
+                    <!-- Result Content -->
+                    <div class="result-content" id="result-content">
+                        <!-- Progress Bar -->
+                        <div class="progress-container" id="progress-container">
+                            <div class="progress-header">
+                                <span class="progress-text" id="progress-text">初始化...</span>
+                                <span class="progress-percent" id="progress-percent">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progress-fill"></div>
+                            </div>
+                        </div>
+
+                        <!-- Media Preview -->
+                        <div class="media-preview" id="media-preview" style="display: none;">
+                            <div style="color: #94a3b8;">预览内容将在这里显示</div>
+                        </div>
+
+                        <!-- Result Text Display -->
+                        <div class="result-text" id="result-text"></div>
+
+                        <!-- Result Info -->
+                        <div class="result-info" id="result-info">
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <span class="info-label">处理状态</span>
+                                    <span class="status-badge status-processing" id="status-badge">
+                                        <span class="loading-spinner"></span>
+                                        处理中
+                                    </span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">水印消息</span>
+                                    <span class="info-value" id="result-message">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">置信度</span>
+                                    <span class="info-value" id="result-confidence">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">处理时间</span>
+                                    <span class="info-value" id="result-time">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">算法</span>
+                                    <span class="info-value" id="result-algorithm">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">任务ID</span>
+                                    <span class="info-value" id="result-task-id">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Result Actions -->
+                        <div class="button-group" id="result-actions" style="display: none; margin-top: 1.5rem;">
+                            <button class="btn btn-primary" id="download-btn">
+                                <span>💾</span>
+                                <span>下载结果</span>
+                            </button>
+                            <button class="btn btn-secondary" id="copy-btn">
+                                <span>📋</span>
+                                <span>复制内容</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API 配置
+        const API_BASE = '';  // 使用相对路径
+        
+        // 全局变量
+        let currentModality = 'text';
+        let currentOperation = 'embed';
+        let isProcessing = false;
+        let uploadedFile = null;
+        let currentTaskId = null;
+
+        // 模态配置
+        const modalityConfig = {
+            text: {
+                name: '文本',
+                placeholders: {
+                    prompt: '请输入文本生成提示词，例如：写一篇关于人工智能的介绍文章',
+                    message: 'demo_text_watermark'
+                }
+            },
+            image: {
+                name: '图像',
+                placeholders: {
+                    prompt: '请输入图像描述，例如：a beautiful cat under sunshine',
+                    message: 'demo_image_watermark'
+                }
+            },
+            audio: {
+                name: '音频',
+                placeholders: {
+                    prompt: '请输入要转换为语音的文本内容',
+                    message: 'demo_audio_watermark'
+                }
+            },
+            video: {
+                name: '视频',
+                placeholders: {
+                    prompt: '请输入视频描述，例如：阳光洒在海面上',
+                    message: 'demo_video_watermark'
+                }
+            }
+        };
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+
+        async function initializeApp() {
+            setupModalitySelector();
+            setupOperationModeSelector();
+            setupFileUpload();
+            setupButtons();
+            updateInputPlaceholders('text');
+            updateFileUploadHint('text');
+            
+            // 检查API状态
+            await checkAPIStatus();
+            
+            console.log('多模态水印工具已初始化完成');
+        }
+
+        // 检查API状态
+        async function checkAPIStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/api/status`);
+                if (response.ok) {
+                    const data = await response.json();
+                    updateStatusIndicator(true, `✅ 在线 (${data.active_tasks} 活跃任务)`);
+                } else {
+                    throw new Error('API响应异常');
+                }
+            } catch (error) {
+                console.error('API状态检查失败:', error);
+                updateStatusIndicator(false, '❌ 离线');
+            }
+        }
+
+        // 更新状态指示器
+        function updateStatusIndicator(online, message) {
+            const indicator = document.getElementById('status-indicator');
+            indicator.className = `status-indicator ${online ? 'status-online' : 'status-offline'}`;
+            indicator.textContent = message;
+        }
+
+        // 显示警告消息
+        function showAlert(message, type = 'error') {
+            const container = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            
+            container.appendChild(alert);
+            
+            // 3秒后自动移除
+            setTimeout(() => {
+                if (alert.parentNode) {
+                    alert.parentNode.removeChild(alert);
+                }
+            }, 3000);
+        }
+
+        // 设置模态选择器
+        function setupModalitySelector() {
+            const modalityCards = document.querySelectorAll('.modality-card');
+            modalityCards.forEach(card => {
+                card.addEventListener('click', function() {
+                    const modality = this.dataset.modality;
+                    if (modality !== currentModality) {
+                        modalityCards.forEach(c => c.classList.remove('active'));
+                        this.classList.add('active');
+                        
+                        currentModality = modality;
+                        updateInputPlaceholders(modality);
+                        updateFileUploadHint(modality);
+                        resetResults();
+                    }
+                });
+            });
+        }
+
+        // 设置操作模式选择器
+        function setupOperationModeSelector() {
+            const radioCards = document.querySelectorAll('.radio-card');
+            const radioInputs = document.querySelectorAll('input[name="operation"]');
+            
+            radioCards.forEach((card, index) => {
+                card.addEventListener('click', function() {
+                    const radio = this.querySelector('input[type="radio"]');
+                    const operation = radio.value;
+                    
+                    if (operation !== currentOperation) {
+                        radioCards.forEach(c => c.classList.remove('active'));
+                        this.classList.add('active');
+                        
+                        radioInputs.forEach(r => r.checked = false);
+                        radio.checked = true;
+                        
+                        currentOperation = operation;
+                        toggleInputMode(operation);
+                        resetResults();
+                    }
+                });
+            });
+        }
+
+        // 切换输入模式
+        function toggleInputMode(operation) {
+            const embedInputs = document.getElementById('embed-inputs');
+            const extractInputs = document.getElementById('extract-inputs');
+            
+            if (operation === 'embed') {
+                embedInputs.style.display = 'block';
+                extractInputs.style.display = 'none';
+            } else {
+                embedInputs.style.display = 'none';
+                extractInputs.style.display = 'block';
+            }
+        }
+
+        // 设置文件上传
+        function setupFileUpload() {
+            const fileUploadArea = document.getElementById('file-upload-area');
+            const fileInput = document.getElementById('file-input');
+            const fileInfo = document.getElementById('file-info');
+            const removeFileBtn = document.getElementById('remove-file');
+            
+            fileUploadArea.addEventListener('click', () => {
+                fileInput.click();
+            });
+            
+            fileInput.addEventListener('change', handleFileSelect);
+            
+            fileUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                fileUploadArea.classList.add('dragover');
+            });
+            
+            fileUploadArea.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                fileUploadArea.classList.remove('dragover');
+            });
+            
+            fileUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                fileUploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFile(files[0]);
+                }
+            });
+            
+            removeFileBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeFile();
+            });
+        }
+
+        // 处理文件选择
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        // 处理文件
+        function handleFile(file) {
+            uploadedFile = file;
+            
+            document.getElementById('file-upload-area').style.display = 'none';
+            document.getElementById('file-info').style.display = 'flex';
+            document.getElementById('file-name').textContent = file.name;
+            document.getElementById('file-size').textContent = formatFileSize(file.size);
+        }
+
+        // 移除文件
+        function removeFile() {
+            uploadedFile = null;
+            document.getElementById('file-upload-area').style.display = 'block';
+            document.getElementById('file-info').style.display = 'none';
+            document.getElementById('file-input').value = '';
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 更新文件上传提示
+        function updateFileUploadHint(modality) {
+            const hints = {
+                text: '支持 .txt, .doc, .docx, .pdf 等文本文件',
+                image: '支持 .jpg, .jpeg, .png, .gif, .bmp 等图像文件',
+                audio: '支持 .mp3, .wav, .flac, .aac 等音频文件',
+                video: '支持 .mp4, .avi, .mov, .mkv 等视频文件'
+            };
+            
+            const hintElement = document.getElementById('upload-hint');
+            if (hintElement) {
+                hintElement.textContent = hints[modality];
+            }
+        }
+
+        // 更新输入提示
+        function updateInputPlaceholders(modality) {
+            const config = modalityConfig[modality];
+            document.getElementById('prompt-input').placeholder = config.placeholders.prompt;
+            document.getElementById('message-input').value = config.placeholders.message;
+        }
+
+        // 设置按钮
+        function setupButtons() {
+            document.getElementById('embed-btn').addEventListener('click', () => {
+                if (!isProcessing) {
+                    startProcessing('embed');
+                }
+            });
+            
+            document.getElementById('extract-btn').addEventListener('click', () => {
+                if (!isProcessing) {
+                    startProcessing('extract');
+                }
+            });
+            
+            document.getElementById('clear-btn').addEventListener('click', () => {
+                clearAll();
+            });
+
+            document.getElementById('download-btn').addEventListener('click', () => {
+                if (currentTaskId) {
+                    downloadResult(currentTaskId);
+                }
+            });
+        }
+
+        // 开始处理
+        async function startProcessing(operation) {
+            if (isProcessing) return;
+            
+            // 验证输入
+            if (operation === 'extract' && !uploadedFile) {
+                showAlert('请先上传要检测的文件', 'error');
+                return;
+            }
+            
+            if (operation === 'embed' && !document.getElementById('prompt-input').value.trim()) {
+                showAlert('请输入内容提示词', 'error');
+                return;
+            }
+            
+            isProcessing = true;
+            
+            // 禁用按钮并显示加载状态
+            const embedBtn = document.getElementById('embed-btn');
+            const extractBtn = document.getElementById('extract-btn');
+            embedBtn.disabled = true;
+            extractBtn.disabled = true;
+            
+            if (operation === 'embed') {
+                embedBtn.innerHTML = '<span class="loading-spinner"></span><span>嵌入中...</span>';
+            } else {
+                extractBtn.innerHTML = '<span class="loading-spinner"></span><span>检测中...</span>';
+            }
+            
+            // 显示结果区域
+            showResults();
+            
+            try {
+                let result;
+                if (operation === 'embed') {
+                    result = await performEmbed();
+                } else {
+                    result = await performExtract();
+                }
+                
+                // 处理成功
+                handleProcessingSuccess(result, operation);
+                
+            } catch (error) {
+                console.error('处理失败:', error);
+                handleProcessingError(error);
+            } finally {
+                // 恢复按钮状态
+                isProcessing = false;
+                embedBtn.disabled = false;
+                extractBtn.disabled = false;
+                embedBtn.innerHTML = '<span>✨</span><span>嵌入水印</span>';
+                extractBtn.innerHTML = '<span>🔍</span><span>提取水印</span>';
+            }
+        }
+
+        // 执行水印嵌入
+        async function performEmbed() {
+            const formData = new FormData();
+            formData.append('modality', currentModality);
+            formData.append('prompt', document.getElementById('prompt-input').value);
+            formData.append('message', document.getElementById('message-input').value);
+            
+            // 添加模态特定参数
+            if (currentModality === 'image') {
+                formData.append('resolution', 512);
+                formData.append('num_inference_steps', 30);
+            } else if (currentModality === 'audio') {
+                formData.append('voice_preset', 'v2/en_speaker_6');
+                formData.append('alpha', 1.0);
+            } else if (currentModality === 'video') {
+                formData.append('num_frames', 49);
+                formData.append('resolution', '512x768');
+            }
+            
+            const response = await fetch(`${API_BASE}/api/embed`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || '嵌入失败');
+            }
+            
+            return await response.json();
+        }
+
+        // 执行水印提取
+        async function performExtract() {
+            const formData = new FormData();
+            formData.append('modality', currentModality);
+            formData.append('file', uploadedFile);
+            
+            const response = await fetch(`${API_BASE}/api/extract`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || '提取失败');
+            }
+            
+            return await response.json();
+        }
+
+        // 处理成功结果
+        function handleProcessingSuccess(result, operation) {
+            currentTaskId = result.task_id;
+            
+            // 隐藏进度条
+            document.getElementById('progress-container').style.display = 'none';
+            
+            // 更新状态标记
+            const statusBadge = document.getElementById('status-badge');
+            if (operation === 'extract' && !result.detected) {
+                statusBadge.className = 'status-badge status-error';
+                statusBadge.innerHTML = '❌ 未检测到水印';
+            } else {
+                statusBadge.className = 'status-badge status-success';
+                statusBadge.innerHTML = '✅ 处理完成';
+            }
+            
+            // 更新结果信息
+            document.getElementById('result-message').textContent = result.message || '-';
+            document.getElementById('result-confidence').textContent = 
+                result.confidence ? (result.confidence * 100).toFixed(1) + '%' : '-';
+            document.getElementById('result-time').textContent = '刚刚';
+            document.getElementById('result-algorithm').textContent = getCurrentAlgorithm();
+            document.getElementById('result-task-id').textContent = result.task_id;
+            
+            // 显示模态特定结果
+            showModalitySpecificResult(result, operation);
+            
+            // 显示操作按钮
+            if (result.output_path || result.generated_text) {
+                document.getElementById('result-actions').style.display = 'flex';
+            }
+            
+            showAlert('处理完成！', 'success');
+        }
+
+        // 处理错误结果
+        function handleProcessingError(error) {
+            // 隐藏进度条
+            document.getElementById('progress-container').style.display = 'none';
+            
+            // 更新状态标记
+            const statusBadge = document.getElementById('status-badge');
+            statusBadge.className = 'status-badge status-error';
+            statusBadge.innerHTML = '❌ 处理失败';
+            
+            showAlert(`处理失败: ${error.message}`, 'error');
+        }
+
+        // 显示模态特定结果
+        function showModalitySpecificResult(result, operation) {
+            const resultText = document.getElementById('result-text');
+            const mediaPreview = document.getElementById('media-preview');
+            
+            // 重置显示
+            resultText.style.display = 'none';
+            mediaPreview.style.display = 'none';
+            
+            switch (currentModality) {
+                case 'text':
+                    if (operation === 'embed' && result.generated_text) {
+                        resultText.textContent = `生成的带水印文本：\n\n${result.generated_text}`;
+                        resultText.style.display = 'block';
+                    } else if (operation === 'extract') {
+                        resultText.textContent = `水印提取结果：\n\n检测到水印: ${result.detected ? '是' : '否'}\n水印消息: ${result.message || '无'}\n置信度: ${result.confidence ? (result.confidence * 100).toFixed(1) + '%' : '0%'}`;
+                        resultText.style.display = 'block';
+                    }
+                    break;
+                    
+                case 'image':
+                    mediaPreview.innerHTML = '<div style="color: var(--text-secondary); text-align: center;"><div style="font-size: 2rem; margin-bottom: 0.5rem;">🖼️</div><div style="font-size: 1rem; font-weight: 500;">图像处理完成<br><span style="font-size: 0.875rem; opacity: 0.7;">点击下载查看结果</span></div></div>';
+                    mediaPreview.style.display = 'flex';
+                    break;
+                    
+                case 'audio':
+                    mediaPreview.innerHTML = '<div style="color: var(--text-secondary); text-align: center;"><div style="font-size: 2rem; margin-bottom: 0.5rem;">🎵</div><div style="font-size: 1rem; font-weight: 500;">音频处理完成<br><span style="font-size: 0.875rem; opacity: 0.7;">点击下载查看结果</span></div></div>';
+                    mediaPreview.style.display = 'flex';
+                    break;
+                    
+                case 'video':
+                    mediaPreview.innerHTML = '<div style="color: var(--text-secondary); text-align: center;"><div style="font-size: 2rem; margin-bottom: 0.5rem;">🎬</div><div style="font-size: 1rem; font-weight: 500;">视频处理完成<br><span style="font-size: 0.875rem; opacity: 0.7;">点击下载查看结果</span></div></div>';
+                    mediaPreview.style.display = 'flex';
+                    break;
+            }
+        }
+
+        // 下载结果
+        async function downloadResult(taskId) {
+            try {
+                const response = await fetch(`${API_BASE}/api/download/${taskId}`);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `result_${taskId}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    showAlert('文件下载成功！', 'success');
+                } else {
+                    throw new Error('下载失败');
+                }
+            } catch (error) {
+                console.error('下载失败:', error);
+                showAlert('下载失败，请稍后重试', 'error');
+            }
+        }
+
+        // 获取当前算法
+        function getCurrentAlgorithm() {
+            const algorithms = {
+                text: 'CredID',
+                image: 'VideoSeal',
+                audio: 'AudioSeal',
+                video: 'HunyuanVideo'
+            };
+            return algorithms[currentModality];
+        }
+
+        // 显示结果
+        function showResults() {
+            document.getElementById('result-placeholder').style.display = 'none';
+            document.getElementById('result-content').classList.add('active');
+            document.getElementById('progress-container').style.display = 'block';
+            
+            // 重置进度条
+            const progressFill = document.getElementById('progress-fill');
+            const progressPercent = document.getElementById('progress-percent');
+            const progressText = document.getElementById('progress-text');
+            
+            progressFill.style.width = '0%';
+            progressPercent.textContent = '0%';
+            progressText.textContent = '初始化...';
+            
+            // 模拟进度
+            simulateProgress();
+            
+            // 隐藏操作按钮
+            document.getElementById('result-actions').style.display = 'none';
+        }
+
+        // 模拟进度条
+        function simulateProgress() {
+            const progressFill = document.getElementById('progress-fill');
+            const progressPercent = document.getElementById('progress-percent');
+            const progressText = document.getElementById('progress-text');
+            
+            let progress = 0;
+            const steps = [
+                { text: '初始化模型...', maxProgress: 20 },
+                { text: '加载数据...', maxProgress: 40 },
+                { text: `${currentOperation === 'embed' ? '嵌入水印' : '检测水印'}...`, maxProgress: 80 },
+                { text: '生成结果...', maxProgress: 95 }
+            ];
+            
+            let currentStep = 0;
+            
+            const interval = setInterval(() => {
+                progress += Math.random() * 5 + 2;
+                
+                if (progress >= steps[currentStep].maxProgress && currentStep < steps.length - 1) {
+                    currentStep++;
+                    progressText.textContent = steps[currentStep].text;
+                }
+                
+                if (progress >= 95) {
+                    progress = 95;
+                    clearInterval(interval);
+                }
+                
+                progressFill.style.width = progress + '%';
+                progressPercent.textContent = Math.round(progress) + '%';
+            }, 200);
+        }
+
+        // 重置结果
+        function resetResults() {
+            document.getElementById('result-placeholder').style.display = 'flex';
+            document.getElementById('result-content').classList.remove('active');
+            currentTaskId = null;
+        }
+
+        // 清除所有内容
+        function clearAll() {
+            document.getElementById('prompt-input').value = '';
+            document.getElementById('message-input').value = modalityConfig[currentModality].placeholders.message;
+            removeFile();
+            resetResults();
+            
+            console.log('已重置所有内容');
+        }
+
+        // 页面加载完成
+        window.addEventListener('load', function() {
+            console.log('多模态水印工具已完全加载');
+        });
+    </script>
+</body>
+</html>
