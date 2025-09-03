@@ -74,6 +74,7 @@ class CredIDWatermark:
         self.message_model = None
         self.wm_processor = None
         self.original_message_length = None  # 记录原始消息的段数，用于循环提取
+        self.last_encoded_binary = None  # 存储最后一次编码的binary数据，用于候选消息管理
         
         logging.info(f"CredIDWatermark initialized in {self.mode} mode on {self.device}")
     
@@ -82,6 +83,7 @@ class CredIDWatermark:
         重置消息相关的状态，用于处理新消息时清理之前的状态
         """
         self.original_message_length = None
+        self.last_encoded_binary = None
     
     def _setup_processors(self, model: PreTrainedModel, tokenizer: PreTrainedTokenizer):
         """
@@ -100,14 +102,14 @@ class CredIDWatermark:
                     lm_model=model,
                     lm_tokenizer=tokenizer,
                     delta=self.lm_params.get('delta', 1.5),
-                    lm_prefix_len=self.lm_params.get('prefix_len', 10),
+                    lm_prefix_len=self.lm_params.get('prefix_len', 5),
                     seed=self.lm_params.get('seed', 42),
                     lm_topk=self.lm_params.get('topk', -1),
                     message_code_len=self.lm_params.get('message_len', 10),
                     random_permutation_num=self.lm_params.get('permutation_num', 50),
                     hash_prefix_len=self.lm_params.get('hash_prefix_len', 1),
                
-                    shifts=self.lm_params.get('shifts', [21, 24, 3, 8, 14, 2, 4, 28, 31, 3, 8, 14, 2, 4, 28])
+                    shifts=self.lm_params.get('shifts', [21, 24, 3, 8, 14,2, 4, 28, 31, 3, 8, 14, 2, 4, 28, 16, 7, 19, 25, 11, 33, 1, 0, 8, 34])
                 )
                 
             elif self.mode == 'random':
@@ -121,7 +123,7 @@ class CredIDWatermark:
                     hash_prefix_len=self.lm_params.get('hash_prefix_len', 1),
                     device=self.device,
                     # Random模式需要的额外参数
-                    shifts=self.lm_params.get('shifts', [21, 24, 3, 8, 14, 2, 4, 28, 31, 3, 8, 14, 2, 4, 28])
+                    shifts=self.lm_params.get('shifts', [21, 24, 3, 8, 14,2, 4, 28, 31, 3, 8, 14, 2, 4, 28, 16, 7, 19, 25, 11, 33, 1, 0, 8, 34])
                 )
             else:
                 raise ValueError(f"Unsupported mode: {self.mode}. Use 'lm' or 'random'.")
@@ -150,14 +152,14 @@ class CredIDWatermark:
             self.original_message_length = len(original_binary)
             
             # 启用循环嵌入：扩展消息段以支持长文本生成
-            max_tokens = self.config.get('max_new_tokens', 1800)  # 大幅增加默认值
-            encode_len = self.lm_params.get('message_len', 10) * self.wm_params.get('encode_ratio', 8)
+            max_tokens = self.config.get('max_new_tokens', 300)  
+            encode_len = self.lm_params.get('message_len', 10) * self.wm_params.get('encode_ratio', 4)
             needed_segments = (max_tokens + encode_len - 1) // encode_len
 
             # 关键保护：限制段数不超过shift模式可支持的数量，避免下游索引越界
             # 注意：shifts数组的长度决定了最大支持的段数
             # 但由于内部实现可能有索引偏移，我们保守地使用 len(shifts) - 1
-            default_shifts = [21, 24, 3, 8, 14, 2, 4, 28, 31, 3, 8, 14, 2, 4, 28]
+            default_shifts = [21, 24, 3, 8, 14,2, 4, 28, 31, 3, 8, 14, 2, 4, 28, 16, 7, 19, 25, 11, 33, 1, 0, 8, 34]
             shifts = self.lm_params.get('shifts', default_shifts)
             # 保守限制：使用 len(shifts) - 1 以避免边界问题
             max_supported_segments = self.wm_params.get('max_segments', len(shifts) - 1 if shifts else 10)
@@ -241,12 +243,15 @@ class CredIDWatermark:
             # 2. 创建水印处理器
             wm_processor = self._create_wm_processor(message)
             
-            # 3. 配置生成参数 - 移除长度限制支持长文本生成
+            # 3. 配置生成参数
             generation_config = {
-                'max_new_tokens': self.config.get('max_new_tokens', 1800),  # 大幅增加默认长度
+                'max_new_tokens': self.config.get('max_new_tokens', 50),   # 合理的默认长度
                 'num_beams': self.config.get('num_beams', 1),  # 减少beam search加速生成
                 'do_sample': self.config.get('do_sample', True),
                 'temperature': self.config.get('temperature', 0.7),
+                'top_p': self.config.get('top_p', 0.9),
+                'top_k': self.config.get('top_k', 50),
+                'repetition_penalty': self.config.get('repetition_penalty', 1.2),  # 防止重复
                 'pad_token_id': tokenizer.eos_token_id,
                 'eos_token_id': tokenizer.eos_token_id
             }
@@ -273,6 +278,9 @@ class CredIDWatermark:
             
             # 8. 准备返回结果
             binary_message = self._message_to_binary(message, segmentation_mode)
+            
+            # 保存编码后的binary数据供候选消息管理器使用
+            self.last_encoded_binary = binary_message.copy()
             
             return {
                 'watermarked_text': watermarked_text,
@@ -718,6 +726,14 @@ class CredIDWatermark:
         """获取当前模式"""
         return self.mode
     
+    def get_last_encoded_binary(self) -> Optional[List[int]]:
+        """
+        获取最后一次嵌入时编码的binary数据
+        
+        Returns:
+            最后一次编码的binary列表，如果没有则返回None
+        """
+        return self.last_encoded_binary
  
     def reset(self):
         """重置处理器，清除缓存"""

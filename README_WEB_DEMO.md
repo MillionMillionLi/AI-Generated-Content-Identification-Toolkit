@@ -72,9 +72,11 @@ python app.py
 ### 2. 图像水印
 **嵌入模式：**
 1. 选择"图像"模态
-2. 输入图像描述提示词（如："a beautiful cat under sunshine"）
-3. 输入要嵌入的水印消息
-4. 点击"嵌入水印"按钮生成带水印的图像
+2. 选择"嵌入水印"操作模式
+3. 选择输入方式：
+   - **AI生成内容**: 输入图像描述提示词（如："a beautiful cat under sunshine"）+ 水印消息
+   - **上传现有文件**: 上传图像文件 + 水印消息
+4. 点击"嵌入水印"按钮
 
 **提取模式：**
 1. 选择"图像"模态
@@ -85,9 +87,11 @@ python app.py
 ### 3. 音频水印
 **嵌入模式：**
 1. 选择"音频"模态
-2. 输入要转换为语音的文本内容
-3. 输入要嵌入的水印消息
-4. 点击"嵌入水印"按钮生成带水印的音频
+2. 选择"嵌入水印"操作模式
+3. 选择输入方式：
+   - **AI生成内容**: 输入要转换为语音的文本内容 + 水印消息
+   - **上传现有文件**: 上传音频文件 + 水印消息
+4. 点击"嵌入水印"按钮
 
 **提取模式：**
 1. 选择"音频"模态
@@ -98,9 +102,11 @@ python app.py
 ### 4. 视频水印
 **嵌入模式：**
 1. 选择"视频"模态
-2. 输入视频描述提示词（如："阳光洒在海面上"）
-3. 输入要嵌入的水印消息
-4. 点击"嵌入水印"按钮生成带水印的视频
+2. 选择"嵌入水印"操作模式
+3. 选择输入方式：
+   - **AI生成内容**: 输入视频描述提示词（如："阳光洒在海面上"）+ 水印消息
+   - **上传现有文件**: 上传视频文件 + 水印消息
+4. 点击"嵌入水印"按钮
 
 **提取模式：**
 1. 选择"视频"模态
@@ -124,9 +130,13 @@ POST /api/embed
 ```
 **参数:**
 - `modality`: 模态类型 (text/image/audio/video)
-- `prompt`: 提示词
 - `message`: 水印消息
-- 模态特定参数...
+- **生成模式参数:**
+  - `prompt`: 提示词（用于AI生成内容）
+  - 模态特定参数（如：resolution, num_frames等）
+- **文件上传模式参数:**
+  - `file`: 上传的文件（用于为现有文件添加水印）
+  - `upload_mode`: 值为"true"，标识这是文件上传模式
 
 #### 3. 水印提取
 ```
@@ -277,6 +287,115 @@ unified_watermark_tool/
 
 ### 扩展API
 在 `app.py` 中添加新的路由处理函数，遵循现有的错误处理和日志记录模式。
+
+## 🔄 前端界面重构说明
+
+### 主要修改内容
+
+#### 1. 用户交互流程优化
+原有流程存在逻辑混乱问题，现已重新设计为清晰的分层选择：
+
+**修改前的问题:**
+- 点击"嵌入水印"后，选择输入方式会错误跳转到提取界面
+- 操作模式选择器意外响应输入方式点击事件
+
+**修改后的正确流程:**
+```
+1. 选择模态 (文本/图像/音频/视频)
+   ↓
+2. 选择操作模式 (嵌入水印/提取水印)
+   ↓
+3. [仅嵌入模式 & 非文本模态] 选择输入方式
+   ├─ AI生成内容: 提示词输入 + 水印消息
+   └─ 上传现有文件: 文件上传 + 水印消息
+```
+
+#### 2. HTML结构调整
+- **输入方式选择**: 移至嵌入模式的最前面，逻辑更清晰
+- **水印消息输入框**: 为生成模式和上传模式分别创建独立输入框
+  - 生成模式: `message-input`
+  - 上传模式: `message-input-upload`
+- **显示控制**: 各个界面区域都有明确的显示/隐藏逻辑
+
+#### 3. JavaScript事件处理修复
+**核心问题修复:**
+- `setupOperationModeSelector()` 使用通用选择器`.radio-card`导致误触发
+- 修改为精确选择器：`document.querySelector('.operation-mode')`
+- 添加安全检查：`if (!radio) return;`
+
+**新增函数:**
+- `getCurrentWatermarkMessage()`: 根据当前模式返回正确的水印消息
+- 优化了各种模式切换的状态管理
+
+#### 4. 前后端接口约定
+
+**水印嵌入请求格式:**
+```javascript
+// AI生成模式
+const formData = new FormData();
+formData.append('modality', 'image/audio/video');
+formData.append('prompt', '用户输入的提示词');
+formData.append('message', '水印消息');
+// + 模态特定参数
+
+// 文件上传模式  
+const formData = new FormData();
+formData.append('modality', 'image/audio/video');
+formData.append('file', uploadedFile);
+formData.append('message', '水印消息'); 
+formData.append('upload_mode', 'true'); // 标识上传模式
+```
+
+### 后端适配建议
+
+#### 1. `/api/embed` 接口需要支持两种模式:
+
+```python
+@app.route('/api/embed', methods=['POST'])
+def embed_watermark():
+    modality = request.form.get('modality')
+    message = request.form.get('message')
+    
+    if request.form.get('upload_mode') == 'true':
+        # 文件上传模式 - 为现有文件添加水印
+        uploaded_file = request.files.get('file')
+        # 处理文件上传 + 水印嵌入
+        result = process_file_with_watermark(uploaded_file, message, modality)
+    else:
+        # AI生成模式 - 生成内容 + 嵌入水印  
+        prompt = request.form.get('prompt')
+        # 处理内容生成 + 水印嵌入
+        result = generate_content_with_watermark(prompt, message, modality)
+    
+    return jsonify(result)
+```
+
+#### 2. 参数获取逻辑:
+- 检查 `upload_mode` 参数判断处理模式
+- 生成模式: 使用 `prompt` 参数 
+- 上传模式: 使用 `file` 参数
+- 水印消息: 统一使用 `message` 参数
+
+#### 3. 响应格式保持一致:
+```json
+{
+  "task_id": "unique_id",
+  "output_path": "path/to/result/file", 
+  "generated_text": "生成的文本内容(仅文本模态)",
+  "message": "嵌入的水印消息",
+  "detected": true,
+  "confidence": 0.95
+}
+```
+
+### 测试验证
+修复后的界面已通过以下场景测试:
+- ✅ 文本模态：只显示生成模式，不显示输入方式选择
+- ✅ 图像/音频/视频模态：正确显示输入方式选择
+- ✅ AI生成内容：显示提示词+水印消息输入框
+- ✅ 上传现有文件：显示文件上传+水印消息输入框  
+- ✅ 提取模式：只显示文件上传，隐藏输入方式选择
+- ✅ 模式切换：各种切换操作不会相互干扰
 
 ## 📄 许可证
 

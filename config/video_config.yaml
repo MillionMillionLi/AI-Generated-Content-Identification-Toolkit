@@ -14,10 +14,10 @@ hunyuan_video:
   
   # 默认生成参数
   default_params:
-    num_frames: 49             # 默认帧数
+    num_frames: 25             # 默认帧数
     height: 320                # 默认高度（必须是16的倍数）
     width: 512                 # 默认宽度（必须是16的倍数）
-    num_inference_steps: 30    # 默认推理步数
+    num_inference_steps: 15    # 默认推理步数
     guidance_scale: 6.0        # 默认引导强度
     fps: 8                     # 输出视频帧率
   

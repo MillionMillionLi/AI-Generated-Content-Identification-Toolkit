@@ -257,8 +257,9 @@ class UnifiedWatermarkEngine:
                 watermark = self._get_image_watermark()
                 if 'image_input' in kwargs:
                     # 在现有图像上嵌入水印
+                    image_input = kwargs.pop('image_input')  # 移除避免重复传递
                     return watermark.embed_watermark(
-                        kwargs['image_input'], 
+                        image_input, 
                         message=message, 
                         **kwargs
                     )

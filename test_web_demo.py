@@ -38,8 +38,8 @@ def test_text_embed():
     try:
         data = {
             'modality': 'text',
-            'prompt': '写一篇关于人工智能发展的简短介绍',
-            'message': 'test_text_watermark'
+            'prompt': 'Please provide a detailed analysis of the software release including version specifications, feature updates, compatibility requirements, and user documentation',
+            'message': 'v202415beta'
         }
         
         response = requests.post(f"{BASE_URL}/api/embed", data=data)

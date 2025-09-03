@@ -8,16 +8,17 @@ mode: "lm"                                 # 模式: "lm" (专家级) 或 "rando
 device: "auto"                             # 设备: "auto", "cuda", "cpu"
 
 # === 生成参数 ===
-max_new_tokens: 1800                        # 最大生成token数
-num_beams: 4                               # beam search参数
+max_new_tokens: 50                         # 最大生成token数 (调整为更合理的长度)
+num_beams: 1                               # beam search参数 (使用采样而非beam search避免重复)
 do_sample: true                            # 是否采样
 temperature: 0.7                           # 生成温度
 top_p: 0.9                                  # nucleus sampling参数
 top_k: 50                                  # top-k采样参数
+repetition_penalty: 1.2                      # 重复惩罚因子，防止重复生成
 
 # === CredID语言模型参数 ===
 lm_params:
-  delta: 1.5                               # logits修改强度 (水印强度)
+  delta: 2.0                               # logits修改强度 (水印强度)
   prefix_len: 10                           # 前缀长度（用于上下文分析）
   message_len: 10                          # 水印消息长度（位数）
   permutation_num: 50                      # 随机排列数量
@@ -25,11 +26,11 @@ lm_params:
   seed: 42                                 # 随机种子
   hash_prefix_len: 1                       # 哈希前缀长度
   # CredID算法需要的shifts参数（哈希偏移量，与原项目保持一致）
-  shifts: [21, 24, 3, 8, 14, 2, 4, 28, 31, 3, 8, 14, 2, 4, 28]
+  shifts:  [21, 24, 3, 8, 14,2, 4, 28, 31, 3, 8, 14, 2, 4, 28, 16, 7, 19, 25, 11, 33, 1, 0, 8, 34]
 
 # === CredID水印处理参数 ===
 wm_params:
-  encode_ratio: 10                         # 编码比率（每多少个token嵌入1位）
+  encode_ratio: 4                         # 编码比率（每多少个token嵌入1位）
   max_confidence: 0.5                      # 最大置信度阈值
   strategy: "vanilla"                      # 策略: "vanilla", "max_confidence", "max_confidence_updated"
   top_k: 1000                              # 处理器top-k参数

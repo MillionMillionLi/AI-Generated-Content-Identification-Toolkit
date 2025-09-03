@@ -53,11 +53,11 @@ def load_test_config():
     # 水印衰减测试配置
     config['num_beams'] = 1  # 加速测试
     config['lm_params']['message_len'] = 10  # 10-bit编码
-    config['wm_params']['encode_ratio'] = 8   # 降低编码密度，确保足够tokens
+    config['wm_params']['encode_ratio'] = 4   # 降低编码密度，确保足够tokens
     # 调整前缀长度避免跳过第一段  
     if 'lm_prefix_len' in config:
-        config['lm_prefix_len'] = 5
-    config['max_new_tokens'] = 3000  # 确保足够长的文本生成
+        config['lm_prefix_len'] = 4
+    config['max_new_tokens'] = 300  # 确保足够长的文本生成
     config['confidence_threshold'] = 0.5
     
     return config

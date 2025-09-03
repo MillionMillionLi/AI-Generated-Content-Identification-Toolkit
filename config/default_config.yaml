@@ -87,11 +87,11 @@ video_watermark:
   
   # HunyuanVideo生成参数（使用测试验证的最优参数）
   hunyuan:
-    num_frames: 49  # 帧数（建议4*k+1）
+    num_frames: 25  # 帧数（建议4*k+1）
     # 重要：高度与宽度需能被16整除；使用更小且兼容的默认分辨率以减少显存与避免报错
     height: 320  # 16的倍数（原720）
     width: 512   # 16的倍数（原1280）
-    num_inference_steps: 30  # 推理步数
+    num_inference_steps: 15  # 推理步数
     guidance_scale: 6.0  # 引导强度
     
   # VideoSeal水印参数

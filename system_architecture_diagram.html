@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多模态水印工具 - 系统架构图</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        .description {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 30px 0;
+            border-left: 4px solid #007bff;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .feature-card {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .feature-card h3 {
+            color: #495057;
+            margin-top: 0;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .feature-card ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .feature-card li {
+            padding: 5px 0;
+            border-bottom: 1px solid #f1f3f4;
+        }
+        .feature-card li:before {
+            content: "▶ ";
+            color: #007bff;
+            font-weight: bold;
+        }
+        #mermaid-diagram {
+            text-align: center;
+            margin: 30px 0;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .performance-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+        }
+        .performance-table th,
+        .performance-table td {
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            text-align: left;
+        }
+        .performance-table th {
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+        .performance-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .legend-user { background-color: #e1f5fe; border: 2px solid #01579b; }
+        .legend-engine { background-color: #f3e5f5; border: 2px solid #4a148c; }
+        .legend-algorithm { background-color: #e8f5e8; border: 2px solid #1b5e20; }
+        .legend-config { background-color: #fff3e0; border: 2px solid #e65100; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 多模态水印工具 - 系统架构图</h1>
+        
+        <div class="description">
+            <h2>📋 系统概览</h2>
+            <p>这是一个统一的多模态水印工具，支持<strong>文本、图像、音频、视频</strong>四种模态的水印功能。采用分层架构设计，通过统一API接口提供服务，支持离线优先的模型加载和多种精度模式。</p>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item legend-user">🖥️ 用户接口层</div>
+            <div class="legend-item legend-engine">⚙️ 统一引擎层</div>
+            <div class="legend-item legend-algorithm">🔧 算法实现层</div>
+            <div class="legend-item legend-config">📁 配置工具层</div>
+        </div>
+
+        <div id="mermaid-diagram">
+            <div class="mermaid">
+graph TB
+    %% 用户接口层
+    subgraph "🖥️ 用户接口层 (User Interface Layer)"
+        WEB[Web界面<br/>Flask App<br/>templates/index.html]
+        API[REST API<br/>app.py<br/>/api/embed, /api/extract]
+        CLI[命令行接口<br/>Python Scripts]
+    end
+
+    %% 统一引擎层
+    subgraph "⚙️ 统一引擎层 (Unified Engine Layer)"
+        TOOL[WatermarkTool<br/>统一门面<br/>watermark_tool.py]
+        ENGINE[UnifiedWatermarkEngine<br/>多模态路由<br/>unified_engine.py]
+    end
+
+    %% 算法实现层
+    subgraph "🔧 算法实现层 (Algorithm Implementation Layer)"
+        subgraph "📝 文本水印"
+            TEXT[CredIDWatermark<br/>credid_watermark.py]
+            CREDID[CredID Framework<br/>多方水印算法]
+        end
+        
+        subgraph "🖼️ 图像水印"
+            IMG[ImageWatermark<br/>image_watermark.py]
+            PRC[PRC-Watermark<br/>基于扩散模型]
+            VS_IMG[VideoSeal Image<br/>单帧视频处理]
+        end
+        
+        subgraph "🎵 音频水印"
+            AUDIO[AudioWatermark<br/>audio_watermark.py]
+            AS[AudioSeal<br/>深度学习音频水印]
+            BARK[Bark TTS<br/>文本转语音]
+        end
+        
+        subgraph "🎬 视频水印"
+            VIDEO[VideoWatermark<br/>video_watermark.py]
+            HY[HunyuanVideo<br/>文生视频]
+            VS[VideoSeal<br/>视频水印算法]
+        end
+    end
+
+    %% 配置和工具层
+    subgraph "📁 配置和工具层 (Configuration & Utility Layer)"
+        CONFIG[配置管理<br/>config/*.yaml]
+        MODEL_MGR[模型管理<br/>离线优先加载]
+        CACHE[模型缓存<br/>本地HF模型]
+    end
+
+    %% 连接关系
+    WEB --> TOOL
+    API --> TOOL
+    CLI --> TOOL
+    
+    TOOL --> ENGINE
+    
+    ENGINE --> TEXT
+    ENGINE --> IMG
+    ENGINE --> AUDIO
+    ENGINE --> VIDEO
+    
+    TEXT --> CREDID
+    IMG --> PRC
+    IMG --> VS_IMG
+    AUDIO --> AS
+    AUDIO --> BARK
+    VIDEO --> HY
+    VIDEO --> VS
+    
+    MODEL_MGR --> CACHE
+    CONFIG --> ENGINE
+    MODEL_MGR --> ENGINE
+
+    %% 样式
+    classDef userLayer fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef engineLayer fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef algorithmLayer fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef configLayer fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    
+    class WEB,API,CLI userLayer
+    class TOOL,ENGINE engineLayer
+    class TEXT,IMG,AUDIO,VIDEO,CREDID,PRC,VS_IMG,AS,BARK,HY,VS algorithmLayer
+    class CONFIG,MODEL_MGR,CACHE configLayer
+            </div>
+        </div>
+
+        <div class="features">
+            <div class="feature-card">
+                <h3>🖥️ 用户接口层特性</h3>
+                <ul>
+                    <li>现代化Web界面，支持拖拽上传</li>
+                    <li>RESTful API，便于集成</li>
+                    <li>命令行接口，适合开发测试</li>
+                    <li>实时进度反馈和错误处理</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <h3>⚙️ 统一引擎层特性</h3>
+                <ul>
+                    <li>统一API：embed/extract接口</li>
+                    <li>智能路由：自动选择算法</li>
+                    <li>懒加载：按需初始化模型</li>
+                    <li>配置驱动：YAML配置管理</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <h3>🔧 算法实现层特性</h3>
+                <ul>
+                    <li>文本：CredID多方水印框架</li>
+                    <li>图像：PRC+VideoSeal双后端</li>
+                    <li>音频：AudioSeal+Bark TTS</li>
+                    <li>视频：HunyuanVideo+VideoSeal</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <h3>📁 配置工具层特性</h3>
+                <ul>
+                    <li>离线优先的模型加载</li>
+                    <li>智能缓存管理系统</li>
+                    <li>YAML驱动的配置系统</li>
+                    <li>统一的工具函数库</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="description">
+            <h2>🚀 性能指标</h2>
+            <table class="performance-table">
+                <thead>
+                    <tr>
+                        <th>模态</th>
+                        <th>算法</th>
+                        <th>检测成功率</th>
+                        <th>处理时间</th>
+                        <th>质量指标</th>
+                        <th>特色功能</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>📝 文本</td>
+                        <td>CredID</td>
+                        <td>高</td>
+                        <td>快速</td>
+                        <td>保持文本质量</td>
+                        <td>多方水印，候选优化</td>
+                    </tr>
+                    <tr>
+                        <td>🖼️ 图像</td>
+                        <td>PRC/VideoSeal</td>
+                        <td>100%</td>
+                        <td>0.19s-52s</td>
+                        <td>高质量生成</td>
+                        <td>三种精度模式</td>
+                    </tr>
+                    <tr>
+                        <td>🎵 音频</td>
+                        <td>AudioSeal</td>
+                        <td>100%</td>
+                        <td>0.93s嵌入/0.04s提取</td>
+                        <td>SNR > 44dB</td>
+                        <td>TTS集成，批处理</td>
+                    </tr>
+                    <tr>
+                        <td>🎬 视频</td>
+                        <td>HunyuanVideo+VideoSeal</td>
+                        <td>高</td>
+                        <td>约3秒生成</td>
+                        <td>320x512分辨率</td>
+                        <td>文生视频+水印</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="description">
+            <h2>🎯 核心优势</h2>
+            <ul style="list-style-type: none; padding: 0;">
+                <li style="padding: 10px 0; border-bottom: 1px solid #eee;"><strong>🔄 统一接口：</strong>四种模态使用相同的API调用方式</li>
+                <li style="padding: 10px 0; border-bottom: 1px solid #eee;"><strong>📱 离线优先：</strong>支持本地模型缓存，减少网络依赖</li>
+                <li style="padding: 10px 0; border-bottom: 1px solid #eee;"><strong>🎛️ 多精度支持：</strong>根据需求选择速度和精度的平衡</li>
+                <li style="padding: 10px 0; border-bottom: 1px solid #eee;"><strong>🔧 易于扩展：</strong>模块化设计，便于添加新算法</li>
+                <li style="padding: 10px 0;"><strong>📊 生产就绪：</strong>完整的错误处理和性能监控</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'linear'
+            }
+        });
+    </script>
+</body>
+</html>

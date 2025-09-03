@@ -757,16 +757,71 @@
                     <!-- Input Content -->
                     <div class="input-grid">
                         <!-- Embed Mode Inputs -->
-                        <div id="embed-inputs">
-                            <div class="form-group">
-                                <label class="form-label" for="prompt-input">内容提示词</label>
-                                <textarea id="prompt-input" class="form-textarea" 
-                                        placeholder="请输入提示词或描述内容..."></textarea>
+                        <div id="embed-inputs" style="display: block;">
+                            <!-- Input Mode Selection for Embed (显示在最前面) -->
+                            <div class="form-group" id="embed-input-mode">
+                                <label class="form-label">输入方式</label>
+                                <div class="input-mode-selector" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                                    <label class="radio-card active" id="generate-mode-card">
+                                        <input type="radio" name="embed-input-mode" value="generate" checked style="display: none;">
+                                        <span class="radio-content">
+                                            <span class="radio-icon">✨</span>
+                                            <span class="radio-text">AI生成内容</span>
+                                        </span>
+                                    </label>
+                                    <label class="radio-card" id="upload-mode-card">
+                                        <input type="radio" name="embed-input-mode" value="upload" style="display: none;">
+                                        <span class="radio-content">
+                                            <span class="radio-icon">📁</span>
+                                            <span class="radio-text">上传现有文件</span>
+                                        </span>
+                                    </label>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label class="form-label" for="message-input">水印消息</label>
-                                <input type="text" id="message-input" class="form-input" 
-                                       placeholder="要嵌入的水印信息..." value="demo_watermark_2025">
+                            
+                            <!-- AI Generate Mode -->
+                            <div id="generate-inputs" style="display: block;">
+                                <div class="form-group">
+                                    <label class="form-label" for="prompt-input">内容提示词</label>
+                                    <textarea id="prompt-input" class="form-textarea" 
+                                            placeholder="请输入提示词或描述内容..."></textarea>
+                                </div>
+                                <!-- Watermark Message for Generate Mode -->
+                                <div class="form-group">
+                                    <label class="form-label" for="message-input">水印消息</label>
+                                    <input type="text" id="message-input" class="form-input" 
+                                           placeholder="要嵌入的水印信息..." value="demo_watermark_2025">
+                                </div>
+                            </div>
+                            
+                            <!-- Upload File Mode -->
+                            <div id="embed-upload-inputs" style="display: none;">
+                                <div class="form-group">
+                                    <label class="form-label">上传文件添加水印</label>
+                                    <div class="file-upload-area" id="embed-file-upload-area">
+                                        <div class="upload-placeholder">
+                                            <div class="upload-icon">📁</div>
+                                            <div class="upload-text">
+                                                <p>点击或拖拽文件到此处</p>
+                                                <p class="upload-hint" id="embed-upload-hint">支持图像、音频、视频文件</p>
+                                            </div>
+                                        </div>
+                                        <input type="file" id="embed-file-input" style="display: none;" accept="*/*">
+                                    </div>
+                                    <div class="file-info" id="embed-file-info" style="display: none;">
+                                        <div class="file-details">
+                                            <span class="file-name" id="embed-file-name">文件名.txt</span>
+                                            <span class="file-size" id="embed-file-size">1.2KB</span>
+                                        </div>
+                                        <button class="remove-file" id="embed-remove-file" type="button">×</button>
+                                    </div>
+                                </div>
+                                <!-- Watermark Message for Upload Mode -->
+                                <div class="form-group">
+                                    <label class="form-label" for="message-input-upload">水印消息</label>
+                                    <input type="text" id="message-input-upload" class="form-input" 
+                                           placeholder="要嵌入的水印信息..." value="demo_watermark_2025">
+                                </div>
                             </div>
                         </div>
 
@@ -797,13 +852,9 @@
 
                     <!-- Action Buttons -->
                     <div class="button-group">
-                        <button class="btn btn-primary" id="embed-btn">
-                            <span>✨</span>
-                            <span>嵌入水印</span>
-                        </button>
-                        <button class="btn btn-secondary" id="extract-btn">
-                            <span>🔍</span>
-                            <span>提取水印</span>
+                        <button class="btn btn-primary" id="confirm-btn">
+                            <span id="confirm-icon">✨</span>
+                            <span id="confirm-text">确认</span>
                         </button>
                         <button class="btn btn-secondary" id="clear-btn">
                             <span>🔄</span>
@@ -907,8 +958,10 @@
         // 全局变量
         let currentModality = 'text';
         let currentOperation = 'embed';
+        let currentEmbedInputMode = 'generate'; // 'generate' or 'upload'
         let isProcessing = false;
         let uploadedFile = null;
+        let embedUploadedFile = null; // 用于embed模式的上传文件
         let currentTaskId = null;
 
         // 模态配置
@@ -937,7 +990,7 @@
             video: {
                 name: '视频',
                 placeholders: {
-                    prompt: '请输入视频描述，例如：阳光洒在海面上',
+                    prompt: '请输入视频描述，例如：the sun is shining on the sea',
                     message: 'demo_video_watermark'
                 }
             }
@@ -949,12 +1002,24 @@
         });
 
         async function initializeApp() {
+            // 首先设置全局变量的初始值
+            currentModality = 'text';
+            currentOperation = 'embed';
+            currentEmbedInputMode = 'generate';
+            
             setupModalitySelector();
             setupOperationModeSelector();
+            setupEmbedInputModeSelector();
             setupFileUpload();
+            setupEmbedFileUpload();
             setupButtons();
+            
+            // 更新界面状态
             updateInputPlaceholders('text');
             updateFileUploadHint('text');
+            updateEmbedFileUploadHint('text');
+            toggleInputMode('embed');
+            updateConfirmButton('embed');
             
             // 检查API状态
             await checkAPIStatus();
@@ -1015,6 +1080,8 @@
                         currentModality = modality;
                         updateInputPlaceholders(modality);
                         updateFileUploadHint(modality);
+                        updateEmbedFileUploadHint(modality);
+                        updateEmbedInputModeVisibility(modality);
                         resetResults();
                     }
                 });
@@ -1023,12 +1090,16 @@
 
         // 设置操作模式选择器
         function setupOperationModeSelector() {
-            const radioCards = document.querySelectorAll('.radio-card');
-            const radioInputs = document.querySelectorAll('input[name="operation"]');
+            // 仅作用于操作模式区域，避免影响"输入方式"卡片
+            const operationModeEl = document.querySelector('.operation-mode');
+            const radioCards = operationModeEl.querySelectorAll('.radio-card');
+            const radioInputs = operationModeEl.querySelectorAll('input[name="operation"]');
             
-            radioCards.forEach((card, index) => {
+            radioCards.forEach((card) => {
                 card.addEventListener('click', function() {
-                    const radio = this.querySelector('input[type="radio"]');
+                    // 只读取操作模式的单选按钮
+                    const radio = this.querySelector('input[name="operation"]');
+                    if (!radio) return;
                     const operation = radio.value;
                     
                     if (operation !== currentOperation) {
@@ -1040,10 +1111,65 @@
                         
                         currentOperation = operation;
                         toggleInputMode(operation);
+                        updateConfirmButton(operation);
                         resetResults();
                     }
                 });
             });
+        }
+
+        // 设置embed输入模式选择器
+        function setupEmbedInputModeSelector() {
+            const generateModeCard = document.getElementById('generate-mode-card');
+            const uploadModeCard = document.getElementById('upload-mode-card');
+            
+            generateModeCard.addEventListener('click', function() {
+                if (currentEmbedInputMode !== 'generate') {
+                    generateModeCard.classList.add('active');
+                    uploadModeCard.classList.remove('active');
+                    generateModeCard.querySelector('input').checked = true;
+                    uploadModeCard.querySelector('input').checked = false;
+                    
+                    currentEmbedInputMode = 'generate';
+                    toggleEmbedInputMode('generate');
+                }
+            });
+            
+            uploadModeCard.addEventListener('click', function() {
+                if (currentEmbedInputMode !== 'upload') {
+                    uploadModeCard.classList.add('active');
+                    generateModeCard.classList.remove('active');
+                    uploadModeCard.querySelector('input').checked = true;
+                    generateModeCard.querySelector('input').checked = false;
+                    
+                    currentEmbedInputMode = 'upload';
+                    toggleEmbedInputMode('upload');
+                }
+            });
+        }
+
+        // 切换embed输入模式
+        function toggleEmbedInputMode(mode) {
+            const generateInputs = document.getElementById('generate-inputs');
+            const embedUploadInputs = document.getElementById('embed-upload-inputs');
+            
+            if (mode === 'generate') {
+                generateInputs.style.display = 'block';
+                embedUploadInputs.style.display = 'none';
+                // 更新按钮状态
+                document.getElementById('generate-mode-card').classList.add('active');
+                document.getElementById('upload-mode-card').classList.remove('active');
+                document.querySelector('input[name="embed-input-mode"][value="generate"]').checked = true;
+                document.querySelector('input[name="embed-input-mode"][value="upload"]').checked = false;
+            } else {
+                generateInputs.style.display = 'none';
+                embedUploadInputs.style.display = 'block';
+                // 更新按钮状态
+                document.getElementById('upload-mode-card').classList.add('active');
+                document.getElementById('generate-mode-card').classList.remove('active');
+                document.querySelector('input[name="embed-input-mode"][value="upload"]').checked = true;
+                document.querySelector('input[name="embed-input-mode"][value="generate"]').checked = false;
+            }
         }
 
         // 切换输入模式
@@ -1054,9 +1180,13 @@
             if (operation === 'embed') {
                 embedInputs.style.display = 'block';
                 extractInputs.style.display = 'none';
+                // 更新embed输入模式的可见性
+                updateEmbedInputModeVisibility(currentModality);
             } else {
                 embedInputs.style.display = 'none';
                 extractInputs.style.display = 'block';
+                // extract模式下隐藏embed输入模式选择
+                document.getElementById('embed-input-mode').style.display = 'none';
             }
         }
 
@@ -1124,6 +1254,70 @@
             document.getElementById('file-input').value = '';
         }
 
+        // 设置embed文件上传
+        function setupEmbedFileUpload() {
+            const embedFileUploadArea = document.getElementById('embed-file-upload-area');
+            const embedFileInput = document.getElementById('embed-file-input');
+            const embedFileInfo = document.getElementById('embed-file-info');
+            const embedRemoveFileBtn = document.getElementById('embed-remove-file');
+            
+            embedFileUploadArea.addEventListener('click', () => {
+                embedFileInput.click();
+            });
+            
+            embedFileInput.addEventListener('change', handleEmbedFileSelect);
+            
+            embedFileUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                embedFileUploadArea.classList.add('dragover');
+            });
+            
+            embedFileUploadArea.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                embedFileUploadArea.classList.remove('dragover');
+            });
+            
+            embedFileUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                embedFileUploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleEmbedFile(files[0]);
+                }
+            });
+            
+            embedRemoveFileBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeEmbedFile();
+            });
+        }
+
+        // 处理embed文件选择
+        function handleEmbedFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleEmbedFile(file);
+            }
+        }
+
+        // 处理embed文件
+        function handleEmbedFile(file) {
+            embedUploadedFile = file;
+            
+            document.getElementById('embed-file-upload-area').style.display = 'none';
+            document.getElementById('embed-file-info').style.display = 'flex';
+            document.getElementById('embed-file-name').textContent = file.name;
+            document.getElementById('embed-file-size').textContent = formatFileSize(file.size);
+        }
+
+        // 移除embed文件
+        function removeEmbedFile() {
+            embedUploadedFile = null;
+            document.getElementById('embed-file-upload-area').style.display = 'block';
+            document.getElementById('embed-file-info').style.display = 'none';
+            document.getElementById('embed-file-input').value = '';
+        }
+
         // 格式化文件大小
         function formatFileSize(bytes) {
             if (bytes === 0) return '0 Bytes';
@@ -1148,24 +1342,73 @@
             }
         }
 
+        // 更新embed文件上传提示
+        function updateEmbedFileUploadHint(modality) {
+            const hints = {
+                text: '文本模式不支持文件上传',
+                image: '支持 .jpg, .jpeg, .png, .gif, .bmp 等图像文件',
+                audio: '支持 .mp3, .wav, .flac, .aac 等音频文件',
+                video: '支持 .mp4, .avi, .mov, .mkv 等视频文件'
+            };
+            
+            const hintElement = document.getElementById('embed-upload-hint');
+            if (hintElement) {
+                hintElement.textContent = hints[modality];
+            }
+        }
+
+        // 更新embed输入模式可见性
+        function updateEmbedInputModeVisibility(modality) {
+            const embedInputMode = document.getElementById('embed-input-mode');
+            
+            // 只有在embed操作模式下才可能显示输入模式选择
+            if (currentOperation === 'embed') {
+                if (modality === 'text') {
+                    // 文本模态隐藏输入方式选择，直接使用生成模式
+                    embedInputMode.style.display = 'none';
+                    currentEmbedInputMode = 'generate';
+                    toggleEmbedInputMode('generate');
+                } else {
+                    // 图像、音频、视频模态显示输入方式选择
+                    embedInputMode.style.display = 'block';
+                    // 确保有正确的默认选择
+                    if (currentEmbedInputMode === null || currentEmbedInputMode === undefined) {
+                        currentEmbedInputMode = 'generate';
+                    }
+                    toggleEmbedInputMode(currentEmbedInputMode);
+                }
+            } else {
+                // extract模式下隐藏输入方式选择
+                embedInputMode.style.display = 'none';
+                currentEmbedInputMode = 'generate';
+                toggleEmbedInputMode('generate');
+            }
+        }
+
+        // 更新确认按钮
+        function updateConfirmButton(operation) {
+            const confirmBtn = document.getElementById('confirm-btn');
+            
+            if (operation === 'embed') {
+                confirmBtn.innerHTML = '<span id="confirm-icon">✨</span><span id="confirm-text">嵌入水印</span>';
+            } else {
+                confirmBtn.innerHTML = '<span id="confirm-icon">🔍</span><span id="confirm-text">提取水印</span>';
+            }
+        }
+
         // 更新输入提示
         function updateInputPlaceholders(modality) {
             const config = modalityConfig[modality];
             document.getElementById('prompt-input').placeholder = config.placeholders.prompt;
             document.getElementById('message-input').value = config.placeholders.message;
+            document.getElementById('message-input-upload').value = config.placeholders.message;
         }
 
         // 设置按钮
         function setupButtons() {
-            document.getElementById('embed-btn').addEventListener('click', () => {
+            document.getElementById('confirm-btn').addEventListener('click', () => {
                 if (!isProcessing) {
-                    startProcessing('embed');
-                }
-            });
-            
-            document.getElementById('extract-btn').addEventListener('click', () => {
-                if (!isProcessing) {
-                    startProcessing('extract');
+                    startProcessing(currentOperation);
                 }
             });
             
@@ -1190,23 +1433,32 @@
                 return;
             }
             
-            if (operation === 'embed' && !document.getElementById('prompt-input').value.trim()) {
-                showAlert('请输入内容提示词', 'error');
-                return;
+            if (operation === 'embed') {
+                if (currentEmbedInputMode === 'generate') {
+                    // 生成模式需要提示词
+                    if (!document.getElementById('prompt-input').value.trim()) {
+                        showAlert('请输入内容提示词', 'error');
+                        return;
+                    }
+                } else {
+                    // 上传模式需要文件
+                    if (!embedUploadedFile) {
+                        showAlert('请先上传要添加水印的文件', 'error');
+                        return;
+                    }
+                }
             }
             
             isProcessing = true;
             
             // 禁用按钮并显示加载状态
-            const embedBtn = document.getElementById('embed-btn');
-            const extractBtn = document.getElementById('extract-btn');
-            embedBtn.disabled = true;
-            extractBtn.disabled = true;
+            const confirmBtn = document.getElementById('confirm-btn');
+            confirmBtn.disabled = true;
             
             if (operation === 'embed') {
-                embedBtn.innerHTML = '<span class="loading-spinner"></span><span>嵌入中...</span>';
+                confirmBtn.innerHTML = '<span class="loading-spinner"></span><span>嵌入中...</span>';
             } else {
-                extractBtn.innerHTML = '<span class="loading-spinner"></span><span>检测中...</span>';
+                confirmBtn.innerHTML = '<span class="loading-spinner"></span><span>检测中...</span>';
             }
             
             // 显示结果区域
@@ -1229,10 +1481,17 @@
             } finally {
                 // 恢复按钮状态
                 isProcessing = false;
-                embedBtn.disabled = false;
-                extractBtn.disabled = false;
-                embedBtn.innerHTML = '<span>✨</span><span>嵌入水印</span>';
-                extractBtn.innerHTML = '<span>🔍</span><span>提取水印</span>';
+                confirmBtn.disabled = false;
+                updateConfirmButton(operation);
+            }
+        }
+
+        // 获取当前水印消息
+        function getCurrentWatermarkMessage() {
+            if (currentEmbedInputMode === 'generate') {
+                return document.getElementById('message-input').value;
+            } else {
+                return document.getElementById('message-input-upload').value;
             }
         }
 
@@ -1240,19 +1499,31 @@
         async function performEmbed() {
             const formData = new FormData();
             formData.append('modality', currentModality);
-            formData.append('prompt', document.getElementById('prompt-input').value);
-            formData.append('message', document.getElementById('message-input').value);
+            formData.append('message', getCurrentWatermarkMessage());
             
-            // 添加模态特定参数
-            if (currentModality === 'image') {
-                formData.append('resolution', 512);
-                formData.append('num_inference_steps', 30);
-            } else if (currentModality === 'audio') {
-                formData.append('voice_preset', 'v2/en_speaker_6');
-                formData.append('alpha', 1.0);
-            } else if (currentModality === 'video') {
-                formData.append('num_frames', 49);
-                formData.append('resolution', '512x768');
+            // 根据输入模式添加不同的参数
+            if (currentEmbedInputMode === 'generate') {
+                // AI生成模式
+                formData.append('prompt', document.getElementById('prompt-input').value);
+                
+                // 添加模态特定参数
+                if (currentModality === 'image') {
+                    formData.append('resolution', 512);
+                    formData.append('num_inference_steps', 30);
+                } else if (currentModality === 'audio') {
+                    formData.append('voice_preset', 'v2/en_speaker_6');
+                    formData.append('alpha', 1.0);
+                } else if (currentModality === 'video') {
+                    formData.append('num_frames', 49);
+                    formData.append('resolution', '512x768');
+                }
+            } else {
+                // 文件上传模式
+                if (embedUploadedFile) {
+                    formData.append('file', embedUploadedFile);
+                    // 添加一个标识表示这是文件上传模式
+                    formData.append('upload_mode', 'true');
+                }
             }
             
             const response = await fetch(`${API_BASE}/api/embed`, {
@@ -1476,7 +1747,14 @@
         function clearAll() {
             document.getElementById('prompt-input').value = '';
             document.getElementById('message-input').value = modalityConfig[currentModality].placeholders.message;
+            document.getElementById('message-input-upload').value = modalityConfig[currentModality].placeholders.message;
             removeFile();
+            removeEmbedFile();
+            
+            // 重置embed输入模式到生成模式
+            currentEmbedInputMode = 'generate';
+            toggleEmbedInputMode('generate');
+            
             resetResults();
             
             console.log('已重置所有内容');
