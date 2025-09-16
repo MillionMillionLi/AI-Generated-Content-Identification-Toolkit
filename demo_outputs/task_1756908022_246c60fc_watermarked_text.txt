@@ -1,0 +1,2 @@
+
+This is a simple test that shows you can edit your site with the CMS software. It also checks if we are able to send emails from the domain (and the correct email). To do this, you need to enter an email address and

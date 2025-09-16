@@ -10,15 +10,17 @@ import sys
 import uuid
 import json
 import time
+import math
 import logging
 import threading
 import hashlib
 import shutil
+import mimetypes
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, Union, List, Tuple
 
-from flask import Flask, request, jsonify, send_file, render_template
+from flask import Flask, request, jsonify, send_file, render_template, Response
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
@@ -29,6 +31,7 @@ sys.path.insert(0, str(project_root / "src"))
 
 try:
     from src.unified.watermark_tool import WatermarkTool
+    from src.video_watermark.utils import VideoTranscoder
     print("✅ 成功导入 WatermarkTool")
 except ImportError as e:
     print(f"❌ 导入 WatermarkTool 失败: {e}")
@@ -355,14 +358,209 @@ def save_uploaded_file(file, task_id: str, modality: str) -> str:
     """保存上传的文件"""
     if file and file.filename:
         filename = secure_filename(file.filename)
-        # 添加时间戳和任务ID避免文件名冲突
+        # 🆕 使用标准化的文件名格式，便于后续查找
         name, ext = os.path.splitext(filename)
-        unique_filename = f"{task_id}_{name}{ext}"
-        file_path = UPLOAD_FOLDER / unique_filename
+        # 格式: task_id_modality_upload.ext
+        standard_filename = f"{task_id}_{modality}_upload{ext}"
+        file_path = UPLOAD_FOLDER / standard_filename
         file.save(str(file_path))
-        logger.info(f"文件已保存: {file_path}")
+        logger.info(f"上传文件已保存: {file_path}")
+        
+        # 🆕 对视频文件进行浏览器兼容性转码
+        if modality == 'video':
+            try:
+                logger.info(f"[{task_id}] 开始对上传的视频进行浏览器兼容性转码")
+                
+                # 检查是否需要转码
+                if not VideoTranscoder.is_web_compatible(str(file_path)):
+                    # 生成转码后的文件路径
+                    transcoded_path = file_path.parent / f"{task_id}_{modality}_upload_web_compatible.mp4"
+                    
+                    # 执行转码
+                    result_path = VideoTranscoder.transcode_for_browser(
+                        input_path=str(file_path),
+                        output_path=str(transcoded_path),
+                        target_fps=15,
+                        quality='medium'
+                    )
+                    
+                    logger.info(f"[{task_id}] 视频转码完成: {result_path}")
+                    
+                    # 删除原始文件，返回转码后的文件
+                    try:
+                        os.remove(str(file_path))
+                        logger.info(f"[{task_id}] 已删除原始上传文件: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"[{task_id}] 删除原始文件失败: {e}")
+                    
+                    return result_path
+                else:
+                    logger.info(f"[{task_id}] 上传的视频已经是浏览器兼容格式，无需转码")
+                    
+            except Exception as e:
+                logger.error(f"[{task_id}] 视频转码失败: {e}")
+                logger.info(f"[{task_id}] 使用原始文件")
+        
         return str(file_path)
     return ""
+
+def get_file_metadata(file_path: Union[str, Path], modality: str) -> Dict[str, Any]:
+    """获取文件元数据信息"""
+    try:
+        if not file_path or not Path(file_path).exists():
+            return {}
+        
+        file_path = Path(file_path)
+        metadata = {
+            "filename": file_path.name,
+            "filesize": format_file_size(file_path.stat().st_size),
+            "format": file_path.suffix.lower()
+        }
+        
+        if modality == 'image':
+            try:
+                from PIL import Image
+                with Image.open(file_path) as img:
+                    metadata["resolution"] = f"{img.width}x{img.height}"
+                    metadata["mode"] = img.mode
+            except Exception:
+                pass
+        elif modality in ['audio', 'video']:
+            # 可以添加更多媒体文件元数据获取
+            # 例如使用 ffmpeg-python 或 mutagen
+            pass
+        
+        return metadata
+    except Exception as e:
+        logger.error(f"获取文件元数据失败: {e}")
+        return {}
+
+def get_original_file_path(task_id: str, modality: str, result: Any) -> Optional[str]:
+    """获取或创建原始文件路径 (AI生成模式)"""
+    try:
+        # 为AI生成的内容创建原始版本文件
+        
+        if modality == 'image':
+            # 🆕 检查是否有保存的原始图像文件
+            original_path = OUTPUT_FOLDER / f"{task_id}_original_image.png"
+            if original_path.exists():
+                logger.info(f"找到原始图像文件: {original_path}")
+                return str(original_path)
+            else:
+                logger.warning(f"原始图像文件不存在: {original_path}")
+                return None
+        elif modality == 'audio':
+            # 对于音频，检查是否有原始音频文件
+            original_path = OUTPUT_FOLDER / f"{task_id}_original_audio.wav"
+            if original_path.exists():
+                return str(original_path)
+            return None  # 暂未实现
+        elif modality == 'video':
+            # 🆕 对于视频，检查是否有保存的原始视频文件
+            original_path = OUTPUT_FOLDER / f"{task_id}_original_video.mp4"
+            if original_path.exists():
+                logger.info(f"找到原始视频文件: {original_path}")
+                return str(original_path)
+            else:
+                logger.warning(f"原始视频文件不存在: {original_path}")
+                return None
+        
+        return None
+    except Exception as e:
+        logger.error(f"获取原始文件路径失败: {e}")
+        return None
+
+def format_file_size(size_bytes: int) -> str:
+    """格式化文件大小"""
+    if size_bytes == 0:
+        return "0 B"
+    size_names = ["B", "KB", "MB", "GB"]
+    i = int(math.floor(math.log(size_bytes, 1024)))
+    p = math.pow(1024, i)
+    s = round(size_bytes / p, 2)
+    return f"{s} {size_names[i]}"
+
+def send_file_with_range(file_path: Union[str, Path]) -> Response:
+    """支持 Range 请求的媒体文件发送，用于音视频流式播放"""
+    try:
+        path = Path(file_path)
+        if not path.exists():
+            return jsonify({"error": "文件不存在"}), 404
+
+        file_size = path.stat().st_size
+        mime_type, _ = mimetypes.guess_type(str(path))
+        if not mime_type:
+            mime_type = 'application/octet-stream'
+
+        range_header = request.headers.get('Range', None)
+        if range_header:
+            # 解析 Range: bytes=start-end
+            try:
+                bytes_unit, bytes_range = range_header.split('=')
+                start_str, end_str = bytes_range.split('-')
+                start = int(start_str) if start_str else 0
+                end = int(end_str) if end_str else file_size - 1
+                # 边界检查
+                start = max(0, start)
+                end = min(end, file_size - 1)
+                if start > end:
+                    start = 0
+                    end = file_size - 1
+
+                length = end - start + 1
+                with open(path, 'rb') as f:
+                    f.seek(start)
+                    data = f.read(length)
+                rv = Response(data, 206, mimetype=mime_type, direct_passthrough=True)
+                rv.headers.add('Content-Range', f'bytes {start}-{end}/{file_size}')
+                rv.headers.add('Accept-Ranges', 'bytes')
+                rv.headers.add('Content-Length', str(length))
+                return rv
+            except Exception:
+                # 回退到完整文件
+                pass
+
+        # 非 Range 请求，直接返回完整文件
+        return send_file(str(path), mimetype=mime_type, as_attachment=False)
+    except Exception as e:
+        logger.error(f"发送媒体文件失败: {e}")
+        return jsonify({"error": f"获取文件失败: {str(e)}"}), 500
+
+def _guess_media_kind_by_suffix(file_path: Union[str, Path]) -> str:
+    """根据文件后缀猜测媒体类型: 'video' | 'audio' | 'image' | 'other'"""
+    suffix = str(file_path).lower()
+    if suffix.endswith(('.mp4', '.webm', '.ogg', '.avi', '.mov', '.mkv', '.flv')):
+        return 'video'
+    if suffix.endswith(('.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg')):
+        return 'audio'
+    if suffix.endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')):
+        return 'image'
+    return 'other'
+
+def _find_original_file_by_task(task_id: str) -> Optional[str]:
+    """当内存任务状态缺失时，通过约定文件名查找原始文件"""
+    try:
+        # 优先查找生成模式的原始文件
+        for p in OUTPUT_FOLDER.glob(f"{task_id}_original_*"):
+            if p.is_file():
+                return str(p)
+        # 再查找上传模式的原始上传文件（兼容 *_upload_web_compatible 等）
+        for p in UPLOAD_FOLDER.glob(f"{task_id}_*_upload*"):
+            if p.is_file():
+                return str(p)
+    except Exception as e:
+        logger.warning(f"通过glob查找原始文件失败: {e}")
+    return None
+
+def _find_watermarked_file_by_task(task_id: str) -> Optional[str]:
+    """当内存任务状态缺失时，通过约定文件名查找水印文件"""
+    try:
+        for p in OUTPUT_FOLDER.glob(f"{task_id}_watermarked_*"):
+            if p.is_file():
+                return str(p)
+    except Exception as e:
+        logger.warning(f"通过glob查找水印文件失败: {e}")
+    return None
 
 @app.route('/')
 def index():
@@ -475,7 +673,7 @@ def api_embed():
                     raise ValueError(f"不支持的{modality}文件类型: {file.filename}")
                 
                 # 保存上传的文件
-                upload_file_path = save_uploaded_file(file, task_id + "_upload", modality)
+                upload_file_path = save_uploaded_file(file, task_id, modality)
                 logger.info(f"[{task_id}] 上传图像文件: {upload_file_path}")
                 
                 # 使用 image_input 参数传递现有图像
@@ -494,10 +692,27 @@ def api_embed():
                                             resolution=resolution,
                                             num_inference_steps=num_inference_steps)
             
-            # 保存生成的图像
-            output_path = OUTPUT_FOLDER / f"{task_id}_watermarked_image.png"
-            if hasattr(result, 'save'):  # PIL Image
-                result.save(str(output_path))
+            # 🆕 处理新的返回格式
+            if isinstance(result, dict) and 'watermarked' in result:
+                # AI生成模式：result包含original和watermarked图像
+                watermarked_image = result['watermarked']
+                original_image = result['original']
+                
+                # 保存水印图像
+                output_path = OUTPUT_FOLDER / f"{task_id}_watermarked_image.png"
+                if hasattr(watermarked_image, 'save'):
+                    watermarked_image.save(str(output_path))
+                
+                # 🆕 保存原始图像
+                original_path = OUTPUT_FOLDER / f"{task_id}_original_image.png"
+                if hasattr(original_image, 'save'):
+                    original_image.save(str(original_path))
+                    logger.info(f"[{task_id}] 原始图像已保存: {original_path}")
+            else:
+                # 上传模式或旧格式：直接保存result
+                output_path = OUTPUT_FOLDER / f"{task_id}_watermarked_image.png"
+                if hasattr(result, 'save'):  # PIL Image
+                    result.save(str(output_path))
             
         elif modality == 'audio':
             # 音频水印嵌入
@@ -519,7 +734,7 @@ def api_embed():
                     raise ValueError(f"不支持的{modality}文件类型: {file.filename}")
                 
                 # 保存上传的文件
-                upload_file_path = save_uploaded_file(file, task_id + "_upload", modality)
+                upload_file_path = save_uploaded_file(file, task_id, modality)
                 logger.info(f"[{task_id}] 上传音频文件: {upload_file_path}")
                 
                 # 使用 audio_input 参数传递现有音频
@@ -539,6 +754,23 @@ def api_embed():
                                             voice_preset=voice_preset,
                                             alpha=alpha,
                                             output_path=str(output_path))
+                
+                # 🆕 处理新的返回格式（AI生成音频）
+                if not upload_mode:
+                    if isinstance(result, dict) and 'watermarked' in result:
+                        watermarked_audio_path = result.get('watermarked')
+                        original_audio_path = result.get('original')
+
+                        # 将水印后音频移动到标准输出路径
+                        if watermarked_audio_path and watermarked_audio_path != str(output_path) and os.path.exists(watermarked_audio_path):
+                            shutil.move(watermarked_audio_path, str(output_path))
+                            logger.info(f"[{task_id}] 水印音频已移动到: {output_path}")
+
+                        # 保存原始音频，供前端对比展示
+                        if original_audio_path and os.path.exists(original_audio_path):
+                            original_output_path = OUTPUT_FOLDER / f"{task_id}_original_audio.wav"
+                            shutil.move(original_audio_path, str(original_output_path))
+                            logger.info(f"[{task_id}] 原始音频已保存: {original_output_path}")
             
         elif modality == 'video':
             # 视频水印嵌入
@@ -561,7 +793,7 @@ def api_embed():
                     raise ValueError(f"不支持的{modality}文件类型: {file.filename}")
                 
                 # 保存上传的文件
-                upload_file_path = save_uploaded_file(file, task_id + "_upload", modality)
+                upload_file_path = save_uploaded_file(file, task_id, modality)
                 logger.info(f"[{task_id}] 上传视频文件: {upload_file_path}")
                 
                 # 使用 video_input 参数传递现有视频
@@ -584,17 +816,76 @@ def api_embed():
                                             height=height,
                                             output_path=str(output_path))
             
-            # 如果返回的路径不同，需要移动文件
-            if result != str(output_path) and os.path.exists(result):
-                shutil.move(result, str(output_path))
-                logger.info(f"视频文件已移动到: {output_path}")
+            # 🆕 处理新的返回格式
+            if isinstance(result, dict) and 'watermarked' in result:
+                # AI生成模式：result包含original和watermarked视频路径
+                watermarked_video_path = result['watermarked']
+                original_video_path = result['original']
+                
+                # 移动水印视频到指定输出路径
+                if watermarked_video_path != str(output_path):
+                    if os.path.exists(watermarked_video_path):
+                        shutil.move(watermarked_video_path, str(output_path))
+                        logger.info(f"水印视频已移动到: {output_path}")
+                
+                # 🆕 移动原始视频到demo_outputs目录
+                if original_video_path and os.path.exists(original_video_path):
+                    original_output_path = OUTPUT_FOLDER / f"{task_id}_original_video.mp4"
+                    shutil.move(original_video_path, str(original_output_path))
+                    logger.info(f"[{task_id}] 原始视频已保存: {original_output_path}")
+            else:
+                # 上传模式或旧格式：直接移动result文件
+                if result != str(output_path) and os.path.exists(result):
+                    shutil.move(result, str(output_path))
+                    logger.info(f"视频文件已移动到: {output_path}")
             
         else:
             raise ValueError(f"不支持的模态类型: {modality}")
         
+        # 获取文件信息和元数据
+        file_info = get_file_metadata(output_path, modality) if output_path else {}
+        
+        # 🆕 增强的任务状态数据
+        task_data = {
+            "status": "completed",
+            "progress": 100,
+            "modality": modality,
+            "input_mode": "upload" if request.form.get('upload_mode', 'false').lower() == 'true' else "generate",
+            "message": message,
+            "prompt": request.form.get('prompt', ''),
+            "watermarked_file": str(output_path) if output_path else None,
+            "original_file": None,  # 将在下面根据模态设置
+            "metadata": file_info,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # 🆕 对于文本模态，添加生成的文本内容到任务数据
+        if modality == 'text' and result:
+            task_data["generated_text"] = str(result)
+            task_data["watermarked_text"] = str(result)  # 文本水印中生成的就是带水印的文本
+        
+        # 🆕 处理原始文件路径 (AI生成模式需要保存原始版本)
+        original_file_path = None
+        if task_data["input_mode"] == "generate" and modality in ['image', 'audio', 'video']:
+            # AI生成模式：尝试获取原始生成的文件 (未加水印版本)
+            original_file_path = get_original_file_path(task_id, modality, result)
+            task_data["original_file"] = original_file_path
+        elif task_data["input_mode"] == "upload":
+            # 上传模式：原始文件就是用户上传(或为浏览器转码后的)文件
+            try:
+                prefix = f"{task_id}_{modality}_upload"
+                # 兼容 *_upload_web_compatible.mp4 等情况
+                matches = sorted(UPLOAD_FOLDER.glob(f"{prefix}*"))
+                if matches:
+                    task_data["original_file"] = str(matches[0])
+                    logger.info(f"找到原始上传文件: {task_data['original_file']}")
+                else:
+                    logger.warning(f"未找到原始上传文件: {UPLOAD_FOLDER}/{prefix}*")
+            except Exception as e:
+                logger.warning(f"查找原始上传文件出错: {e}")
+        
         # 更新任务状态
-        active_tasks[task_id]["progress"] = 100
-        active_tasks[task_id]["status"] = "completed"
+        active_tasks[task_id] = task_data
         
         # 构建响应
         response_data = {
@@ -786,18 +1077,253 @@ def api_extract():
             "timestamp": datetime.now().isoformat()
         }), 500
 
+@app.route('/api/visible_mark', methods=['POST'])
+def api_visible_mark():
+    """可见标识添加接口"""
+    task_id = generate_task_id()
+    logger.info(f"[{task_id}] 🏷️ 开始处理可见标识请求")
+    
+    # 初始化任务状态
+    active_tasks[task_id] = {
+        "status": "processing",
+        "timestamp": datetime.now().isoformat(),
+        "progress": 0,
+        "modality": None,
+        "operation": "visible_mark"
+    }
+    
+    try:
+        # 获取参数
+        modality = request.form.get('modality')
+        mark_text = request.form.get('mark_text', '本内容由人工智能生成/合成')
+        
+        if not modality or modality not in ['text', 'image', 'audio', 'video']:
+            return jsonify({"error": "无效的模态类型"}), 400
+        
+        active_tasks[task_id]["modality"] = modality
+        active_tasks[task_id]["progress"] = 10
+        
+        logger.info(f"[{task_id}] 📝 模态: {modality}, 标识文本: {mark_text}")
+        
+        # 导入可见标识模块
+        from src.utils.visible_mark import (
+            add_text_mark_to_text,
+            add_overlay_to_image, 
+            add_overlay_to_video_ffmpeg,
+            add_voice_mark_to_audio
+        )
+        from PIL import Image
+        
+        if modality == 'text':
+            # 文本标识处理
+            text_content = request.form.get('text', '')
+            position = request.form.get('position', 'start')
+            
+            if not text_content.strip():
+                return jsonify({"error": "文本内容不能为空"}), 400
+            
+            logger.info(f"[{task_id}] 文本标识参数: 位置={position}, 文案={mark_text}, 原文长度={len(text_content)}")
+            
+            active_tasks[task_id]["progress"] = 50
+            
+            # 添加文本标识
+            marked_text = add_text_mark_to_text(text_content, mark_text, position)
+            
+            active_tasks[task_id]["progress"] = 90
+            
+            # 保存结果到文件
+            output_dir = Path("demo_outputs")
+            output_dir.mkdir(exist_ok=True)
+            output_path = output_dir / f"task_{task_id}_marked_text.txt"
+            
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(marked_text)
+            
+            # 更新任务状态
+            active_tasks[task_id].update({
+                "status": "completed",
+                "progress": 100,
+                "output_path": str(output_path),
+                "output_text": marked_text,
+                "watermarked_file": str(output_path)
+            })
+            
+            logger.info(f"[{task_id}] ✅ 文本标识添加完成")
+            
+            return jsonify({
+                "task_id": task_id,
+                "status": "completed",
+                "output_text": marked_text,
+                "output_path": str(output_path),
+                "timestamp": datetime.now().isoformat()
+            })
+            
+        else:
+            # 文件上传处理
+            uploaded_file = request.files.get('file')
+            if not uploaded_file or uploaded_file.filename == '':
+                return jsonify({"error": "未上传文件"}), 400
+            
+            # 保存上传文件
+            uploads_dir = Path("demo_uploads")
+            uploads_dir.mkdir(exist_ok=True)
+            
+            filename = secure_filename(uploaded_file.filename)
+            input_path = uploads_dir / f"{task_id}_{filename}"
+            uploaded_file.save(input_path)
+            
+            active_tasks[task_id]["progress"] = 30
+            
+            # 输出目录
+            output_dir = Path("demo_outputs")
+            output_dir.mkdir(exist_ok=True)
+            
+            if modality == 'image':
+                # 图像标识处理
+                position = request.form.get('position', 'bottom_right')
+                font_percent = float(request.form.get('font_percent', 5.0))
+                font_color = request.form.get('font_color', '#FFFFFF')
+                
+                logger.info(f"[{task_id}] 图像标识参数: 位置={position}, 字号={font_percent}%, 颜色={font_color}, 文案={mark_text}")
+                
+                # 打开图像
+                img = Image.open(input_path)
+                active_tasks[task_id]["progress"] = 60
+                
+                # 添加图像标识（无背景框版本）
+                marked_img = add_overlay_to_image(
+                    img, mark_text, position, font_percent, font_color, bg_rgba=None
+                )
+                active_tasks[task_id]["progress"] = 80
+                
+                # 保存结果
+                output_path = output_dir / f"task_{task_id}_marked_image.{img.format.lower() if img.format else 'png'}"
+                marked_img.save(output_path)
+                
+                active_tasks[task_id].update({
+                    "status": "completed",
+                    "progress": 100,
+                    "output_path": str(output_path),
+                    "watermarked_file": str(output_path),
+                    "original_file": str(input_path)
+                })
+                
+            elif modality == 'video':
+                # 视频标识处理
+                position = request.form.get('position', 'bottom_right')
+                font_percent = float(request.form.get('font_percent', 5.0))
+                duration_seconds = float(request.form.get('duration_seconds', 2.0))
+                font_color = request.form.get('font_color', 'white')
+                
+                logger.info(f"[{task_id}] 视频标识参数: 位置={position}, 字号={font_percent}%, 颜色={font_color}, 时长={duration_seconds}s, 文案={mark_text}")
+                
+                active_tasks[task_id]["progress"] = 60
+                
+                # 输出文件路径
+                output_path = output_dir / f"task_{task_id}_marked_video.mp4"
+                
+                # 添加视频标识（无背景框版本）
+                result_path = add_overlay_to_video_ffmpeg(
+                    str(input_path), str(output_path), mark_text, position,
+                    font_percent, duration_seconds, font_color, box_color="transparent"
+                )
+                
+                active_tasks[task_id]["progress"] = 90
+                
+                # 浏览器兼容性检查 + 转码（避免调用不存在的方法）
+                final_output = str(result_path)
+                try:
+                    if not VideoTranscoder.is_web_compatible(final_output):
+                        web_path = output_dir / f"task_{task_id}_marked_video_web.mp4"
+                        final_output = VideoTranscoder.transcode_for_browser(
+                            input_path=str(result_path),
+                            output_path=str(web_path),
+                            target_fps=15,
+                            quality='medium'
+                        )
+                except Exception as e:
+                    logger.warning(f"[{task_id}] 浏览器兼容性处理失败，使用原视频: {e}")
+                
+                active_tasks[task_id].update({
+                    "status": "completed", 
+                    "progress": 100,
+                    "output_path": final_output,
+                    "watermarked_file": final_output,
+                    "original_file": str(input_path)
+                })
+                
+            elif modality == 'audio':
+                # 音频标识处理
+                position = request.form.get('position', 'start')
+                voice_preset = request.form.get('voice_preset', 'v2/zh_speaker_6')
+                
+                logger.info(f"[{task_id}] 音频标识参数: 位置={position}, 语音预设={voice_preset}, 文案={mark_text}")
+                
+                active_tasks[task_id]["progress"] = 60
+                
+                # 输出文件路径
+                output_path = output_dir / f"task_{task_id}_marked_audio.wav"
+                
+                # 添加音频标识
+                result_path = add_voice_mark_to_audio(
+                    str(input_path), str(output_path), mark_text, position, voice_preset
+                )
+                
+                active_tasks[task_id].update({
+                    "status": "completed",
+                    "progress": 100,
+                    "output_path": result_path,
+                    "watermarked_file": result_path,
+                    "original_file": str(input_path)
+                })
+            
+            logger.info(f"[{task_id}] ✅ {modality} 标识添加完成: {active_tasks[task_id]['output_path']}")
+            
+            return jsonify({
+                "task_id": task_id,
+                "status": "completed",
+                "output_path": active_tasks[task_id]["output_path"],
+                "timestamp": datetime.now().isoformat()
+            })
+            
+    except Exception as e:
+        active_tasks[task_id]["status"] = "error"
+        active_tasks[task_id]["error"] = str(e)
+        
+        logger.error(f"[{task_id}] ❌ 可见标识添加失败: {e}")
+        return jsonify({
+            "task_id": task_id,
+            "status": "error", 
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
 @app.route('/api/download/<task_id>')
 def download_result(task_id):
     """下载处理结果"""
     try:
-        # 查找输出文件
-        output_files = list(OUTPUT_FOLDER.glob(f"{task_id}_*"))
+        # 查找输出文件 - 支持多种命名模式
+        output_files = []
+        
+        # 模式1: 标准水印文件 {task_id}_*
+        output_files.extend(list(OUTPUT_FOLDER.glob(f"{task_id}_*")))
+        
+        # 模式2: 可见标识文件 task_{task_id}_marked_*
+        output_files.extend(list(OUTPUT_FOLDER.glob(f"task_{task_id}_marked_*")))
         
         if not output_files:
+            logger.error(f"未找到任务 {task_id} 的结果文件")
             return jsonify({"error": "未找到结果文件"}), 404
         
-        # 返回第一个匹配的文件
-        file_path = output_files[0]
+        # 返回第一个匹配的文件，优先返回水印后的文件
+        # 对于可见标识，查找 marked_ 文件
+        watermarked_files = [f for f in output_files if 'watermarked' in f.name or 'marked' in f.name]
+        if watermarked_files:
+            file_path = watermarked_files[0]
+        else:
+            file_path = output_files[0]
+        
+        logger.info(f"下载文件: {file_path}")
         return send_file(str(file_path), as_attachment=True)
         
     except Exception as e:
@@ -806,11 +1332,74 @@ def download_result(task_id):
 
 @app.route('/api/task/<task_id>')
 def get_task_status(task_id):
-    """获取任务状态"""
-    if task_id in active_tasks:
-        return jsonify(active_tasks[task_id])
-    else:
+    """获取任务状态 - 增强版本，包含文件URL和元数据"""
+    if task_id not in active_tasks:
         return jsonify({"error": "任务不存在"}), 404
+    
+    task_data = active_tasks[task_id].copy()
+    
+    # 🆕 添加文件访问URL
+    if task_data.get("status") == "completed":
+        files_info = {}
+        
+        if task_data.get("original_file"):
+            files_info["original"] = f"/api/files/{task_id}/original"
+        if task_data.get("watermarked_file"):
+            files_info["watermarked"] = f"/api/files/{task_id}/watermarked"
+        
+        task_data["files"] = files_info
+    
+    return jsonify(task_data)
+
+@app.route('/api/files/<task_id>/original')
+def get_original_file(task_id):
+    """获取原始文件 - 用于对比展示"""
+    try:
+        if task_id not in active_tasks:
+            return jsonify({"error": "任务不存在"}), 404
+        
+        task_data = active_tasks.get(task_id, {})
+        original_file = task_data.get("original_file")
+        if not original_file:
+            # 回退：通过文件名约定查找
+            original_file = _find_original_file_by_task(task_id)
+        
+        if not original_file or not Path(original_file).exists():
+            return jsonify({"error": "原始文件不存在"}), 404
+        
+        # 对音视频使用 Range 支持
+        kind = _guess_media_kind_by_suffix(original_file)
+        if kind in ('video', 'audio'):
+            return send_file_with_range(original_file)
+        return send_file(original_file, as_attachment=False)
+    except Exception as e:
+        logger.error(f"获取原始文件失败: {e}")
+        return jsonify({"error": f"获取文件失败: {str(e)}"}), 500
+
+@app.route('/api/files/<task_id>/watermarked')
+def get_watermarked_file(task_id):
+    """获取水印文件 - 用于对比展示"""
+    try:
+        if task_id not in active_tasks:
+            return jsonify({"error": "任务不存在"}), 404
+        
+        task_data = active_tasks.get(task_id, {})
+        watermarked_file = task_data.get("watermarked_file")
+        if not watermarked_file:
+            # 回退：通过文件名约定查找
+            watermarked_file = _find_watermarked_file_by_task(task_id)
+        
+        if not watermarked_file or not Path(watermarked_file).exists():
+            return jsonify({"error": "水印文件不存在"}), 404
+        
+        # 对音视频使用 Range 支持
+        kind = _guess_media_kind_by_suffix(watermarked_file)
+        if kind in ('video', 'audio'):
+            return send_file_with_range(watermarked_file)
+        return send_file(watermarked_file, as_attachment=False)
+    except Exception as e:
+        logger.error(f"获取水印文件失败: {e}")
+        return jsonify({"error": f"获取文件失败: {str(e)}"}), 500
 
 @app.route('/api/candidates', methods=['GET'])
 def api_candidates():

@@ -29,6 +29,8 @@ Location: `src/unified/unified_engine.py`
 
 Key features:
 - Unified API: `embed(prompt, message, modality, **kwargs)` and `extract(content, modality, **kwargs)` for `text|image|audio|video`
+- **Dual-mode support**: AI generation mode (prompt-based) and upload file mode (file-based watermarking)
+- **Original file preservation**: returns both original and watermarked content for comparison display
 - Defaults: `text=credid`, `image=videoseal`, `audio=audioseal`, `video=hunyuan+videoseal`
 - Offline-first: lazily initializes text model/tokenizer from local cache; falls back to `sshleifer/tiny-gpt2` if configured model not found (still offline)
 - Config-driven: reads `config/text_config.yaml` and modality-specific configs
@@ -38,22 +40,61 @@ Quick start:
 from src.unified.watermark_tool import WatermarkTool
 
 tool = WatermarkTool()
-# Text
+
+# AI生成模式 (Generate Mode) - Web界面选择"AI生成内容"
+# Text (文本水印仅支持AI生成模式)
 txt = tool.embed("示例文本", "wm_msg", 'text')
 res = tool.extract(txt, 'text')
-# Image
-img = tool.embed("a cat", "hello_vs", 'image')
-# Audio (persist to file)
+
+# Image (图像AI生成 + 水印嵌入，自动保存原图和水印图用于对比)
+img = tool.embed("a cat", "hello_vs", 'image')  # 返回水印图像
+
+# Audio (音频AI生成 + 水印嵌入，自动保存原音频和水印音频)
 aud = tool.embed("audio content", "hello_audio", 'audio', output_path="outputs/audio/a.wav")
-# Video (generates and saves a file)
+
+# Video (视频AI生成 + 水印嵌入，自动保存原视频和水印视频)
 vid = tool.embed("阳光洒在海面上", "video_wm", 'video')
+
+# 上传现有文件模式 (Upload File Mode) - Web界面选择"上传现有文件"
+# Image watermarking (图像文件水印嵌入)
+img_wm = tool.embed("watermark message", "hello_img", 'image', 
+                    image_input="/path/to/image.jpg")
+                    
+# Audio watermarking (音频文件水印嵌入)
+aud_wm = tool.embed("watermark message", "hello_audio", 'audio',
+                    audio_input="/path/to/audio.wav", output_path="outputs/watermarked.wav")
+                    
+# Video watermarking (视频文件水印嵌入，自动转码为浏览器兼容格式)
+vid_wm = tool.embed("watermark message", "hello_video", 'video',
+                    video_input="/path/to/video.mp4")
 ```
 
 Parameters and returns:
-- Text: auto-uses cached model/tokenizer if not provided; returns `str`
-- Image: returns `PIL.Image`; `extract` supports `replicate/chunk_size`
-- Audio: `output_path` persists file; returns `torch.Tensor | str`
-- Video: returns saved video path; `extract` returns `{detected, message, confidence, metadata}`
+- **Text**: 
+  - **仅支持AI生成模式**，用于CredID文本水印生成
+  - auto-uses cached model/tokenizer; returns watermarked `str`
+  - extraction returns `{detected: bool, message: str, confidence: float}`
+  
+- **Image**: 
+  - **AI生成模式**: 基于Stable Diffusion生成图像后嵌入水印，返回`PIL.Image`
+  - **上传文件模式**: 使用`image_input`参数上传现有图像文件进行水印嵌入
+  - **后端支持**: VideoSeal (默认), PRC-Watermark (可选)
+  - **对比显示**: 自动保存原图和水印图，Web界面显示before/after对比
+  - `extract` supports `replicate/chunk_size` for enhanced detection confidence
+  
+- **Audio**: 
+  - **AI生成模式**: Bark TTS生成音频 + AudioSeal水印嵌入，`output_path`保存文件
+  - **上传文件模式**: 使用`audio_input`参数上传现有音频文件进行水印嵌入  
+  - **格式支持**: WAV, MP3, FLAC等主流音频格式
+  - **对比显示**: 自动保存原音频和水印音频，支持Web播放器对比
+  - returns `torch.Tensor | str`; extraction returns `{detected, message, confidence}`
+  
+- **Video**: 
+  - **AI生成模式**: HunyuanVideo生成视频 + VideoSeal水印嵌入
+  - **上传文件模式**: 使用`video_input`参数上传现有视频文件进行水印嵌入
+  - **浏览器兼容**: 自动转码为H.264+AAC+faststart格式确保Web播放
+  - **对比显示**: 自动保存原视频和水印视频，支持并排播放对比
+  - returns saved video path; `extract` returns `{detected, message, confidence, metadata}`
 
 Offline cache hints:
 - Set `TRANSFORMERS_OFFLINE=1` and `HF_HUB_OFFLINE=1`; store models under `models/` or point `HF_HOME/HF_HUB_CACHE` to local hub
@@ -216,17 +257,6 @@ python test_method_single_party.py      # Single vendor scenario
 python test_method_multi_party.py       # Multi-vendor scenario  
 python test_real_word.py                # Real-world mixed text scenario
 
-# Run specific experiments
-cd src/text_watermark/credid/experiments
-python run_CredID.py                    # CredID framework experiments
-python run_attack.py                    # Attack robustness testing
-
-# Run evaluation pipelines
-cd src/text_watermark/credid/evaluation/pipelines
-python success_rate_analysis.py         # Success rate evaluation
-python quality_analysis.py              # Text quality analysis
-python speed_analysis.py                # Performance analysis
-
 # AudioSeal音频水印测试
 python tests/test_audio_watermark.py    # 完整音频水印测试套件
 python audio_watermark_demo.py          # 端到端演示脚本
@@ -255,33 +285,254 @@ python audio_watermark_demo.py          # 端到端演示脚本
 
 ### Configuration Management
 
-The tool uses YAML configuration files:
-- `config/default_config.yaml`: Main configuration for text, image, and audio watermarking
-- `config/text_config.yaml`: Text-specific configuration
-- `src/text_watermark/credid/config/`: Algorithm-specific JSON configurations (CredID.json, KGW.json, etc.)
+The tool uses YAML configuration files and supports both AI generation and file upload modes for all supported modalities:
 
-Audio watermarking configuration example:
+#### 📁 主要配置文件位置
+- `config/default_config.yaml`: 统一配置文件，包含所有模态的默认设置
+- `config/text_config.yaml`: 文本水印专用配置
+- `src/text_watermark/credid/config/`: 算法特定的JSON配置 (CredID.json, KGW.json, etc.)
+
+#### 🔧 各模态参数配置详解
+
+##### 文本水印配置 (Text Watermarking)
+**修改文件**: `config/text_config.yaml` 或 `src/text_watermark/credid/config/CredID.json`
 ```yaml
-audio_watermark:
-  algorithm: audioseal
-  device: cuda
-  nbits: 16
-  sample_rate: 16000
-  bark_config:
-    model_size: large
-    temperature: 0.8
-    default_voice: v2/en_speaker_6
+# config/text_config.yaml
+text_watermark:
+  algorithm: credid
+  model_name: gpt2-medium               # 或 sshleifer/tiny-gpt2 (离线回退)
+  device: cuda                          # 设备选择：cpu/cuda
+  watermark_method: credid
+  hf_cache_dir: ~/.cache/huggingface   # 模型缓存目录
+  offline_mode: true                   # 强制离线加载
 ```
+
+**核心参数说明**:
+- `model_name`: LLM模型路径，优先本地缓存
+- `offline_mode`: 启用时强制`local_files_only=True`
+- `watermark_method`: 支持credid, kgw, mpac等算法
+
+##### 图像水印配置 (Image Watermarking)  
+**修改文件**: `config/default_config.yaml` (image_watermark section)
+```yaml
+# config/default_config.yaml - 图像水印部分
+image_watermark:
+  algorithm: videoseal                  # 算法选择：videoseal（默认）, prc
+  model_name: stabilityai/stable-diffusion-2-1-base
+  resolution: 512                       # AI生成模式：图像分辨率
+  num_inference_steps: 30               # AI生成模式：推理步数
+  guidance_scale: 7.5                   # AI生成模式：引导系数
+  lowres_attenuation: true              # VideoSeal：低分辨率衰减
+  device: cuda
+  
+  # PRC-Watermark 特有配置（当algorithm=prc时生效）
+  prc_config:
+    decoder_model_path: models/dec_48b_whit.torchscript.pt
+    noise_step: 50
+    mode: exact                         # 模式选择：fast/accurate/exact
+    
+  # 上传文件模式配置
+  upload_config:
+    max_file_size: 10485760            # 最大上传文件大小 (10MB)
+    supported_formats: [jpg, jpeg, png, bmp, webp]
+```
+
+**核心参数说明**:
+- **AI生成模式**: `resolution`, `num_inference_steps`, `guidance_scale`控制生成质量
+- **上传文件模式**: `max_file_size`和`supported_formats`控制文件上传限制
+- **VideoSeal**: `lowres_attenuation`启用低分辨率优化，`replicate`和`chunk_size`提升检测精度
+- **PRC**: `mode`选择检测精度级别，`noise_step`影响水印强度
+
+##### 音频水印配置 (Audio Watermarking)
+**修改文件**: `config/default_config.yaml` (audio_watermark section)
+```yaml  
+# config/default_config.yaml - 音频水印部分
+audio_watermark:
+  algorithm: audioseal                  # AudioSeal算法
+  device: cuda
+  nbits: 16                            # 消息编码位数
+  sample_rate: 16000                   # 采样率
+  
+  # Bark TTS配置 (AI生成模式)
+  bark_config:
+    model_size: large                  # 模型大小：large/medium/small
+    temperature: 0.8                   # 生成温度，控制随机性
+    default_voice: v2/en_speaker_6     # 默认说话人音色
+    cache_dir: ~/.cache/bark           # Bark模型缓存目录
+    
+  # 上传文件模式配置
+  upload_config:
+    max_file_size: 52428800           # 最大上传文件大小 (50MB)
+    supported_formats: [wav, mp3, flac, aac, m4a]
+    auto_resample: true               # 自动重采样到目标采样率
+```
+
+**核心参数说明**:
+- **AI生成模式**: `bark_config`控制TTS质量，`temperature`影响语音自然度
+- **上传文件模式**: `auto_resample`自动处理采样率不匹配问题  
+- **AudioSeal**: `nbits=16`支持字符串消息编码，`sample_rate`需与输入音频匹配
+
+##### 视频水印配置 (Video Watermarking)
+**修改文件**: `config/default_config.yaml` (video_watermark section)
+```yaml
+# config/default_config.yaml - 视频水印部分  
+video_watermark:
+  # HunyuanVideo生成配置 (AI生成模式)
+  hunyuan_config:
+    model_name: hunyuanvideo-community/HunyuanVideo
+    num_frames: 49                     # 视频帧数（建议4k+1：13,49,75）
+    height: 720                        # 视频高度
+    width: 1280                        # 视频宽度  
+    num_inference_steps: 30            # 推理步数
+    guidance_scale: 6.0                # 引导系数
+    device: cuda
+    enable_cpu_offload: true           # CPU内存卸载优化
+    
+  # VideoSeal水印配置  
+  videoseal_config:
+    model_path: ckpts/videoseal         # VideoSeal模型路径
+    lowres_attenuation: true           # 低分辨率衰减
+    device: cuda
+    
+  # 上传文件模式配置
+  upload_config:
+    max_file_size: 104857600          # 最大上传文件大小 (100MB)
+    supported_formats: [mp4, avi, mov, mkv, flv, webm]
+    transcode_for_web: true           # 自动转码为浏览器兼容格式
+    target_codec: libx264             # 目标视频编解码器
+    target_audio_codec: aac           # 目标音频编解码器
+    enable_faststart: true            # 启用快速开始（Web优化）
+```
+
+**核心参数说明**:
+- **AI生成模式**: `num_frames`控制视频长度，`height/width`控制分辨率，数值越高质量越好但耗时更长
+- **上传文件模式**: `transcode_for_web=true`自动转码为H.264+AAC+faststart确保浏览器兼容
+- **内存优化**: `enable_cpu_offload`在GPU内存不足时启用CPU卸载
+- **质量平衡**: 降低分辨率和帧数可减少内存占用和处理时间
+
+#### 🎯 快速参数调优指南
+
+**提升生成质量**:
+```yaml
+# 图像：提高分辨率和推理步数
+resolution: 1024
+num_inference_steps: 50
+
+# 视频：提高分辨率和帧数  
+height: 1024
+width: 1024
+num_frames: 75
+
+# 音频：使用更大的Bark模型
+bark_config:
+  model_size: large
+  temperature: 0.7
+```
+
+**优化性能和内存**:
+```yaml
+# 降低分辨率和步数
+resolution: 320
+num_inference_steps: 20
+height: 320
+width: 512
+
+# 启用内存优化
+enable_cpu_offload: true
+lowres_attenuation: true
+```
+
+**增强检测准确率**:
+```yaml
+# 图像VideoSeal检测优化
+replicate: 16          # 单图复制为多帧 
+chunk_size: 16         # 分块检测
+
+# PRC精确模式
+prc_config:
+  mode: exact          # 最高精度检测
+  noise_step: 50       # 标准噪声步数
+```
+
+## Web Demo Interface Features
+
+### 🌐 统一Web界面 (templates/index.html)
+项目提供了完整的Web演示界面，支持所有模态的水印操作：
+
+**核心功能**:
+- **双模式切换**: "AI生成内容" 和 "上传现有文件" 模式无缝切换
+- **实时状态反馈**: 任务状态实时更新，支持进度显示和错误提示  
+- **对比显示界面**: 自动显示原文件vs水印文件的并排对比
+- **多媒体支持**: 支持文本、图像、音频、视频的Web播放和显示
+- **文件下载**: 支持原文件和水印文件的独立下载
+
+**界面特性**:
+```javascript
+// 动态模板切换
+function toggleMode(modality) {
+    // 根据选择的模态和模式显示相应的输入界面
+    showTemplate(modality, selectedMode);
+}
+
+// 结果对比显示
+function showComparison(modality, originalUrl, watermarkedUrl) {
+    // 自动加载对比模板并显示before/after效果
+    loadComparisonTemplate(modality, originalUrl, watermarkedUrl);
+}
+```
+
+**技术实现亮点**:
+- **媒体加载重试**: `loadMediaWithRetry()`确保音视频文件稳定加载
+- **浏览器兼容优化**: 视频自动转码为H.264+AAC格式确保跨浏览器支持
+- **响应式设计**: 支持桌面和移动设备的最佳显示效果
+
+### 🔧 后端API支持 (app.py)
+Flask后端提供完整的RESTful API：
+
+**主要端点**:
+```python
+@app.route('/api/watermark/<modality>', methods=['POST'])
+def watermark_endpoint(modality):
+    # 统一水印处理端点，支持text/image/audio/video
+    
+@app.route('/api/files/<task_id>/original')
+@app.route('/api/files/<task_id>/watermarked') 
+def serve_file(task_id, file_type):
+    # 文件服务端点，支持原文件和水印文件访问
+    
+@app.route('/api/status/<task_id>')
+def get_task_status(task_id):
+    # 任务状态查询，实时返回处理进度
+```
+
+**文件处理特性**:
+- **智能文件管理**: 自动保存原文件和水印文件，支持task_id关联
+- **多格式支持**: 自动处理不同文件格式的上传和转换  
+- **内存优化**: 大文件流式处理，避免内存溢出
+- **安全验证**: 文件类型验证和大小限制确保系统安全
 
 ## Key Implementation Details
 
 ### Text Watermarking (CredID)
+- **仅支持AI生成模式**: 基于LLM的文本生成与水印嵌入
 - Multi-bit watermarking framework supporting multiple LLM vendors
 - Privacy-preserving design with Trusted Third Party (TTP) architecture
 - Error correction codes (ECC) for robustness against attacks
 - Joint-voting mechanism for multi-party watermark extraction
+- **离线优先**: 优先使用本地缓存模型，支持完全离线运行
 
-### Image Watermarking (PRC-Watermark)
+### Image Watermarking (Dual Backend Support)
+**支持后端**: VideoSeal (默认), PRC-Watermark (可选)
+**双模式支持**: AI生成模式 + 上传文件模式
+
+#### VideoSeal 图像水印 (默认)
+- **单帧视频处理**: 将图像视作单帧视频，复用VideoSeal视频水印算法
+- **检测增强**: 支持`replicate`和`chunk_size`参数，通过多帧复制提升检测置信度
+- **低分辨率优化**: `lowres_attenuation`参数优化低分辨率图像处理
+- **AI生成模式**: Stable Diffusion 2.1 + VideoSeal水印，自动保存原图和水印图
+- **上传文件模式**: 直接对上传图像嵌入VideoSeal水印，支持多种图像格式
+
+#### PRC-Watermark (可选后端)
 - **完整的PRC水印系统**: 基于Stable Diffusion的伪随机纠错码水印
 - **统一的exact_inversion实现**: 所有模式都使用相同的核心逆向函数，仅通过参数调节
 - **多精度逆向模式**: 
@@ -292,78 +543,171 @@ audio_watermark:
 - **本地模型支持**: 离线模式使用本地Stable Diffusion 2.1模型
 - **简洁架构**: 统一的`_image_to_latents()`函数，消除代码冗余
 
+#### 技术实现特点
+- **懒加载架构**: 按需初始化具体后端，避免无关依赖加载
+- **离线优先**: 强制本地模型加载，避免网络依赖
+- **对比显示**: Web界面自动显示原图vs水印图的并排对比
+- **格式支持**: JPG, PNG, BMP, WebP等主流图像格式
+
 ### Audio Watermarking (AudioSeal)
-- **Meta AudioSeal算法**: 基于深度学习的鲁棒音频水印技术，完整Python封装
-- **消息编码系统**: 16位消息支持，使用SHA256哈希确保编码一致性，支持字符串到二进制的可靠转换
+**双模式支持**: AI生成模式(Bark TTS) + 上传文件模式
+**核心算法**: Meta AudioSeal 深度学习音频水印
+
+#### 技术特性
+- **16位消息编码**: 基于SHA256哈希的字符串消息编码系统，确保编码一致性
 - **高保真嵌入**: SNR>40dB（实测44.45dB），听觉质量几乎无损失
-- **多模态集成**: 
-  - 直接音频水印嵌入/提取（0.93秒嵌入，0.04秒提取）
-  - Bark TTS集成实现文本→语音→水印的完整流程（3-8秒生成）
+- **双处理模式**: 
+  - **AI生成模式**: Bark TTS文本转语音 + AudioSeal水印嵌入（3-8秒生成）
+  - **上传文件模式**: 直接对上传音频文件进行水印嵌入（0.93秒嵌入，0.04秒提取）
+- **原文件保存**: 两种模式都自动保存原音频和水印音频，支持Web界面对比播放
 - **设备自适应**: 支持CPU/CUDA自动切换和设备张量管理，修复设备不匹配问题
 - **批处理支持**: 高效的批量音频处理能力（3个音频2.8秒）
-- **格式兼容**: 支持WAV、MP3、FLAC等主流音频格式读写
-- **鲁棒性测试**: 对不同SNR级别噪声的抗性验证（SNR≥10dB可靠检测）
+- **格式兼容**: 支持WAV、MP3、FLAC、AAC、M4A等主流音频格式读写
+- **鲁棒性验证**: 对不同SNR级别噪声的抗性测试（SNR≥10dB可靠检测）
 
-### Unified Interface
+#### Bark TTS集成
+- **多语言支持**: 支持中英文等多语言高质量语音合成
+- **音色选择**: 支持多种预设说话人音色，默认使用`v2/en_speaker_6`
+- **智能缓存**: 优先使用本地缓存，支持符号链接和自定义缓存目录
+- **参数控制**: `temperature`控制生成随机性，`model_size`控制模型质量
+
+### Video Watermarking (HunyuanVideo + VideoSeal)
+**双模式支持**: AI生成模式(HunyuanVideo) + 上传文件模式
+**技术栈**: HunyuanVideo文生视频 + VideoSeal视频水印
+
+#### 核心特性
+- **双处理流程**:
+  - **AI生成模式**: HunyuanVideo文本生成视频 + VideoSeal水印嵌入
+  - **上传文件模式**: 直接对上传视频文件进行VideoSeal水印嵌入
+- **原文件保存**: 两种模式都自动保存原视频和水印视频，支持Web界面并排播放对比
+- **浏览器兼容**: 自动转码为H.264+AAC+faststart格式，确保跨浏览器Web播放
+- **内存优化**: 支持CPU内存卸载和VAE tiling，处理大分辨率视频
+- **离线优先**: 优先使用本地HunyuanVideo模型快照，避免网络下载
+
+#### HunyuanVideo集成
+- **模型支持**: 使用`hunyuanvideo-community/HunyuanVideo`社区维护版本
+- **帧数控制**: 支持13/49/75等帧数配置（建议4k+1格式）
+- **分辨率配置**: 支持320x320到1280x720等多种分辨率
+- **内存管理**: CUDA下启用`vae.enable_tiling()`和`enable_model_cpu_offload()`
+- **生成时间**: 典型13帧320x320视频约3秒生成时间
+
+#### VideoSeal视频水印
+- **256位水印**: 支持长消息的字符串编码
+- **分块检测**: 支持`max_frames`和`chunk_size`参数优化大视频处理
+- **置信度评估**: 提供检测置信度和元数据信息
+- **格式支持**: MP4, AVI, MOV, MKV, FLV, WebM等视频格式
+
+#### 浏览器兼容转码
+- **自动转码**: `transcode_for_web=true`启用H.264+AAC+faststart转码
+- **编码器选择**: 默认使用libx264视频编码器和AAC音频编码器  
+- **快速开始**: 启用faststart优化Web流媒体播放
+- **文件管理**: 智能处理转码后的文件命名和访问
+
+### Unified Interface (Enhanced)
 The `WatermarkTool` class in `src/unified/watermark_tool.py` provides:
-- Consistent API for text, image, and audio watermarking
-- Batch processing capabilities
-- Algorithm switching at runtime
-- Configuration management across modalities
+- **Consistent API**: 统一的`embed()`和`extract()`接口支持所有模态
+- **Dual-mode support**: 每个模态都支持AI生成和文件上传两种模式
+- **Original file preservation**: 自动保存原文件和水印文件供对比显示
+- **Batch processing**: 批处理能力支持大规模文件处理
+- **Algorithm switching**: 运行时算法切换（如VideoSeal/PRC图像后端）
+- **Configuration management**: 跨模态配置管理和参数优化
+- **Web integration**: 与Flask Web界面的无缝集成
+- **Error handling**: 完善的错误处理和降级策略
 
 ## Working with Different Components
 
-When modifying text watermarking:
-- Focus on `src/text_watermark/credid/` for core CredID implementation
-- Use `src/text_watermark/credid/config/` for algorithm parameters
-- Test changes with demo scripts in `src/text_watermark/credid/demo/`
+### 🔧 各模态开发和修改指南
 
-When modifying image watermarking:
-- **核心实现**: `src/image_watermark/prc_watermark.py` - PRC水印主要封装类
-- **底层算法**: `src/image_watermark/PRC-Watermark/` - 原始PRC算法实现
-- **高级接口**: `src/image_watermark/image_watermark.py` - 统一基类接口
-- **测试方法**: 
-  - 使用`python test_prc_only.py`进行完整系统测试
-  - 测试所有三种模式(fast/accurate/exact)的性能表现
+#### 修改文本水印 (Text Watermarking)
+**主要文件位置**:
+- **核心算法**: `src/text_watermark/credid/` - CredID多方水印框架
+- **配置文件**: `src/text_watermark/credid/config/` - 算法特定参数（CredID.json等）
+- **统一配置**: `config/text_config.yaml` - 全局文本水印设置
+- **测试脚本**: `src/text_watermark/credid/demo/` - 单方和多方场景演示
 
-When modifying audio watermarking:
-- **核心实现**: `src/audio_watermark/audioseal_wrapper.py` - AudioSeal水印封装类，处理3D张量维度要求
-- **TTS集成**: `src/audio_watermark/bark_generator.py` - Bark文本转语音生成器，智能缓存管理
-- **统一接口**: `src/audio_watermark/audio_watermark.py` - 音频水印统一基类，提供与图像、文本一致的API
-- **工具函数**: `src/audio_watermark/utils.py` - 音频处理、质量评估、可视化、噪声鲁棒性测试
-- **测试方法**:
-  - 使用`python tests/test_audio_watermark.py`进行完整系统测试（100%检测成功率）
-  - 使用`python audio_watermark_demo.py`查看端到端演示
-- **关键修复**: 解决维度匹配、设备一致性、Bark导入检测等技术问题
+**修改流程**:
+1. 算法参数调整 → 修改`config/text_config.yaml`或相应JSON配置文件
+2. 模型路径设置 → 配置`model_name`和`hf_cache_dir`参数
+3. 离线模式 → 设置`offline_mode: true`和相应环境变量
+4. 测试验证 → 运行`src/text_watermark/credid/demo/`下的测试脚本
 
-When extending the unified interface:
-- Modify `src/unified/watermark_tool.py` for new functionality
-- Update configuration schemas in `config/` directory
-- Add examples to `examples/quick_start.py`
+#### 修改图像水印 (Image Watermarking)  
+**主要文件位置**:
+- **统一接口**: `src/image_watermark/image_watermark.py` - 双后端支持的基类
+- **VideoSeal后端**: `src/image_watermark/videoseal_image_watermark.py` - 默认后端实现
+- **PRC后端**: `src/image_watermark/prc_watermark.py` - 可选PRC水印实现
+- **配置文件**: `config/default_config.yaml` (image_watermark section)
 
-## PRC水印系统状态
+**修改流程**:
+1. **切换后端** → 修改`algorithm: videoseal|prc`配置
+2. **AI生成参数** → 调整`resolution`, `num_inference_steps`, `guidance_scale`
+3. **上传文件限制** → 修改`upload_config`中的`max_file_size`和`supported_formats`
+4. **检测优化** → 配置VideoSeal的`replicate`和`chunk_size`参数
+5. **测试验证** → 运行`python test_image_videoseal_root.py`或`python test_prc_only.py`
 
-### ✅ 已完成功能
-- **核心架构**: 完整的PRCWatermark类封装，支持embed/extract统一接口
-- **简洁实现**: 统一的`_image_to_latents()`函数，消除冗余代码，仅保留`exact_inversion()`
-- **参数化控制**: 通过decoder_inv和inference_steps参数控制三种精度等级
-- **100%检测成功**: 所有模式都能完美检测和解码水印消息
-- **本地模型**: 离线模式支持，使用缓存的Stable Diffusion 2.1模型
-- **完整测试**: 8项测试全部通过，代码简化后依然保持完美性能
+#### 修改音频水印 (Audio Watermarking)
+**主要文件位置**:
+- **统一接口**: `src/audio_watermark/audio_watermark.py` - 双模式音频水印基类
+- **AudioSeal核心**: `src/audio_watermark/audioseal_wrapper.py` - 深度学习水印实现
+- **Bark TTS**: `src/audio_watermark/bark_generator.py` - AI语音生成集成
+- **工具函数**: `src/audio_watermark/utils.py` - 音频处理和质量评估
+- **配置文件**: `config/default_config.yaml` (audio_watermark section)
 
-### 🚀 性能基准
-| 模式 | 检测成功率 | 处理时间 | 适用场景 |
-|------|------------|----------|----------|
-| FAST | 100% | 0.19秒 | 实时应用 |
-| ACCURATE | 100% | 13.7秒 | 生产环境 |
-| EXACT | 100% | 52.15秒 | 研究分析 |
+**修改流程**:
+1. **基础参数** → 调整`nbits`, `sample_rate`, `device`配置
+2. **TTS设置** → 修改`bark_config`中的`model_size`, `temperature`, `default_voice`
+3. **上传支持** → 配置`upload_config`的格式支持和文件大小限制  
+4. **设备优化** → 根据硬件配置选择CPU/CUDA设备
+5. **测试验证** → 运行`python tests/test_audio_watermark.py`完整测试套件
 
-### 🔧 技术实现亮点
-- 解决了复杂的Python包导入冲突问题
-- 实现了GPU/CPU tensor设备自动转换
-- **代码架构优化**: 统一使用`exact_inversion()`函数，消除冗余的独立实现
-- **参数化模式控制**: 通过decoder_inv和inference_steps参数实现不同精度等级
-- 支持prompt引导的精确逆向(所有模式)
+#### 修改视频水印 (Video Watermarking)
+**主要文件位置**:
+- **统一接口**: `src/video_watermark/video_watermark.py` - 双模式视频水印
+- **HunyuanVideo**: `src/video_watermark/hunyuan_video_generator.py` - AI视频生成
+- **VideoSeal**: `src/video_watermark/videoseal_wrapper.py` - 视频水印算法
+- **视频处理**: `src/video_watermark/utils.py` - 转码和I/O工具
+- **配置文件**: `config/default_config.yaml` (video_watermark section)
+
+**修改流程**:
+1. **生成质量** → 调整`num_frames`, `height`, `width`, `num_inference_steps`
+2. **内存优化** → 配置`enable_cpu_offload`和设备映射策略  
+3. **浏览器兼容** → 设置`transcode_for_web`, `target_codec`等转码参数
+4. **上传支持** → 修改`upload_config`的视频格式和大小限制
+5. **测试验证** → 运行`python tests/test_video_watermark_demo.py`
+
+#### 扩展统一接口 (Unified Interface)
+**主要文件位置**:
+- **核心工具**: `src/unified/watermark_tool.py` - 高层API封装
+- **引擎核心**: `src/unified/unified_engine.py` - 底层执行引擎
+- **Web集成**: `app.py` - Flask Web应用后端
+- **前端界面**: `templates/index.html` - 用户交互界面
+
+**扩展流程**:
+1. **新功能接口** → 在`watermark_tool.py`中添加新方法
+2. **引擎支持** → 在`unified_engine.py`中实现底层逻辑
+3. **配置更新** → 修改`config/`目录下的YAML配置文件
+4. **Web集成** → 更新`app.py`的API端点和`templates/index.html`的界面
+5. **测试覆盖** → 添加相应的测试用例和演示脚本
+
+### 🎯 常见开发场景
+
+**添加新的水印算法**:
+1. 在相应模态目录下创建新的算法实现类
+2. 更新模态基类的算法选择逻辑  
+3. 添加配置项到YAML配置文件
+4. 实现测试用例验证功能
+
+**优化Web界面体验**:
+1. 修改`templates/index.html`的前端逻辑
+2. 更新`app.py`的API端点支持
+3. 增强错误处理和用户反馈
+4. 测试跨浏览器兼容性
+
+**提升处理性能**:
+1. 调整模型加载和推理参数
+2. 优化内存使用和设备分配
+3. 实现批处理和并行处理
+4. 性能基准测试和监控
 
 ## AudioSeal音频水印系统状态
 
@@ -395,35 +739,6 @@ When extending the unified interface:
 - **智能缓存管理**: Bark模型优先使用本地缓存，支持符号链接和自定义缓存目录
 - **测试覆盖**: 包含基础功能、批处理、文件I/O、噪声鲁棒性等全面测试
 
-## 🚨 已知问题与限制
-
-### Bark TTS 缓存问题
-
-**问题描述**:
-- Bark TTS存在双重缓存系统问题，会同时使用HuggingFace缓存目录和专用的Suno缓存目录
-- 即使设置了`HF_HOME`或`CACHE_DIR`，Bark仍会在`/root/.cache/suno/`下载约8.4GB的模型文件
-- 这导致磁盘空间重复占用，特别是在存储空间有限的环境中
-
-**根本原因**:
-- Bark使用独立的模型管理系统，不完全遵循HuggingFace的缓存配置
-- 存在两套缓存逻辑：HuggingFace标准缓存 + Suno专用缓存
-
-**当前受限功能**:
-- 文本转语音功能 (`generate_audio_with_watermark`)
-- 高级音频水印演示 (`demo_text_to_audio_watermark`) 
-- 完整模式演示 (`python audio_watermark_demo.py --mode full`)
-
-**不受影响的功能**:
-- 基础音频水印功能 (AudioSeal嵌入/提取)
-- 基础模式演示 (`python audio_watermark_demo.py --mode basic`)
-- 音频文件处理和质量评估
-- 批处理功能
-
-## Memory Annotations
-
-- 用中文回答: 这是一个提醒，表示在处理项目或文档时使用中文进行交流和注释
-- **PRC水印已完成**: 系统已经成功实现并通过所有测试，可以投入使用
-- **AudioSeal音频水印已完成**: Meta AudioSeal算法完整集成，包含Bark TTS，全部测试通过，性能稳定
 
 ## 变更摘要（2025-08）
 

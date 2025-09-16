@@ -270,7 +270,8 @@ class AudioWatermark:
                                     prompt: str,
                                     message: str,
                                     output_path: Optional[str] = None,
-                                    **kwargs) -> Union[torch.Tensor, str]:
+                                    return_original: bool = False,
+                                    **kwargs) -> Union[torch.Tensor, str, Dict[str, Union[torch.Tensor, str]]]:
         """
         生成带水印的音频（使用Bark生成器）
         
@@ -278,10 +279,12 @@ class AudioWatermark:
             prompt: 文本提示词
             message: 要嵌入的水印消息
             output_path: 输出文件路径，None则返回tensor
+            return_original: 是否同时返回原始音频
             **kwargs: 生成和水印参数
             
         Returns:
-            Union[torch.Tensor, str]: 生成的含水印音频tensor或文件路径
+            Union[torch.Tensor, str]: 生成的含水印音频tensor或文件路径（当return_original=False时）
+            Dict[str, Union[torch.Tensor, str]]: 包含'original'和'watermarked'键的字典（当return_original=True时）
         """
         self._ensure_model()
         self._ensure_bark_generator()
@@ -326,19 +329,46 @@ class AudioWatermark:
             FileUtils.ensure_dir(output_path.parent)
             
             # 避免文件名冲突
-            output_path = FileUtils.get_unique_filename(output_path)
+            watermarked_path = FileUtils.get_unique_filename(str(output_path))
             
-            # 保存音频
+            # 保存水印音频
             AudioIOUtils.save_audio(
                 watermarked_audio, 
-                output_path, 
+                watermarked_path, 
                 self.config.get('sample_rate', 16000)
             )
             
-            self.logger.info(f"带水印音频已保存: {output_path}")
-            return str(output_path)
+            self.logger.info(f"带水印音频已保存: {watermarked_path}")
+            
+            # 如果需要返回原始音频，也保存原始音频
+            if return_original:
+                # 生成原始音频文件路径
+                original_path = str(output_path).replace('.wav', '_original.wav')
+                original_path = FileUtils.get_unique_filename(original_path)
+                
+                # 保存原始音频
+                AudioIOUtils.save_audio(
+                    generated_audio, 
+                    original_path, 
+                    self.config.get('sample_rate', 16000)
+                )
+                
+                self.logger.info(f"原始音频已保存: {original_path}")
+                
+                return {
+                    'original': original_path,
+                    'watermarked': watermarked_path
+                }
+            else:
+                return watermarked_path
         else:
-            return watermarked_audio
+            if return_original:
+                return {
+                    'original': generated_audio,
+                    'watermarked': watermarked_audio
+                }
+            else:
+                return watermarked_audio
     
     def batch_embed(self, 
                    audio_inputs: List[Union[str, torch.Tensor]],

@@ -265,9 +265,11 @@ class UnifiedWatermarkEngine:
                     )
                 else:
                     # 生成新图像并嵌入水印
+                    # 🆕 AI生成模式：请求返回原始图像
                     return watermark.generate_with_watermark(
                         prompt, 
                         message=message,
+                        return_original=True,  # 请求同时返回原始图像
                         **kwargs
                     )
                     
@@ -284,9 +286,11 @@ class UnifiedWatermarkEngine:
                     )
                 else:
                     # 文本转语音+水印
+                    # 🆕 对于AI生成音频，传递 return_original=True 以支持对比显示
                     return watermark.generate_audio_with_watermark(
                         prompt, 
-                        message, 
+                        message,
+                        return_original=True,
                         **kwargs
                     )
                     
@@ -308,9 +312,11 @@ class UnifiedWatermarkEngine:
                         kwargs['height'] = 320
                     if 'width' not in kwargs:
                         kwargs['width'] = 512
+                    # 🆕 AI生成模式：请求返回原始视频
                     return watermark.generate_video_with_watermark(
                         prompt, 
-                        message, 
+                        message,
+                        return_original=True,  # 请求同时返回原始视频
                         **kwargs
                     )
             else:

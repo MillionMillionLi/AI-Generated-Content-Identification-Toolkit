@@ -1,126 +1,221 @@
-# 简化版多模态水印工具设计
+# 统一多模态水印工具设计文档
 
 ## 🎯 项目目标
 
-开发一个简单易用的多模态水印工具，支持：
-- **文本水印**：基于CredID算法
-- **图像水印**：基于PRC算法
-- **视频水印**：基于Video Seal算法
-- **音频水印**：基于AudioSeal算法，完整集成Bark文本转语音，支持多语言高质量语音生成
-- **统一接口**：提供一致的嵌入和提取API
+开发一个功能完善的统一多模态水印工具，支持：
+
+### 📋 支持模态与算法
+- **文本水印**：基于CredID算法的LLM文本水印（仅AI生成模式）
+- **图像水印**：双后端支持（VideoSeal默认，PRC-Watermark可选）
+- **音频水印**：基于AudioSeal算法，完整集成Bark文本转语音支持
+- **视频水印**：基于HunyuanVideo生成 + VideoSeal水印技术栈
+
+### 🌟 核心特性
+- **双模式支持**：每个模态都支持"AI生成内容"和"上传现有文件"两种处理模式
+- **统一接口**：提供一致的`embed()`和`extract()`API接口
+- **对比显示**：Web界面自动保存并显示原文件vs水印文件的并排对比
+- **可见标识合规**：支持AI生成内容的显式标识，满足监管要求
+- **离线优先**：优先使用本地模型缓存，避免网络依赖
+- **浏览器兼容**：视频/音频文件自动转码确保跨浏览器Web播放
+- **配置驱动**：YAML配置文件管理所有参数，支持运行时调整
 
 ## 📁 目录结构与层级关系（当前实现）
 
 ```
 unified_watermark_tool/
 ├── config/
-│   ├── default_config.yaml
-│   └── text_config.yaml                # 文本水印配置
+│   ├── default_config.yaml             # 统一配置文件（所有模态）
+│   └── text_config.yaml                # 文本水印专用配置
 ├── src/
 │   ├── __init__.py
 │   ├── unified/                        # 统一引擎与高层门面
-│   │   ├── unified_engine.py           # UnifiedWatermarkEngine（text/image/audio/video）
-│   │   └── watermark_tool.py           # 高层封装：推荐入口（embed/extract统一API）
-│   ├── text_watermark/                 # 文本水印（CredID）
+│   │   ├── unified_engine.py           # UnifiedWatermarkEngine（支持双模式）
+│   │   └── watermark_tool.py           # 高层封装：推荐入口
+│   ├── text_watermark/                 # 文本水印（CredID，仅AI生成）
 │   │   ├── __init__.py
 │   │   ├── credid_watermark.py         # CredID算法高级封装
 │   │   └── credid/                     # CredID框架（watermarking/attacks/...）
-│   ├── image_watermark/                # 图像水印
+│   ├── image_watermark/                # 图像水印（双后端+双模式）
 │   │   ├── __init__.py
-│   │   ├── image_watermark.py          # 统一图像接口（默认VideoSeal后端）
-│   │   ├── prc_watermark.py            # PRC 封装
-│   │   ├── PRC-Watermark/              # PRC 实现
-│   │   └── videoseal_image_watermark.py# VideoSeal 图像封装
-│   ├── audio_watermark/                # 音频水印
+│   │   ├── image_watermark.py          # 统一图像接口（懒加载后端选择）
+│   │   ├── prc_watermark.py            # PRC-Watermark后端
+│   │   ├── PRC-Watermark/              # PRC算法实现
+│   │   └── videoseal_image_watermark.py# VideoSeal图像后端（默认）
+│   ├── audio_watermark/                # 音频水印（双模式支持）
 │   │   ├── __init__.py
-│   │   ├── audio_watermark.py          # 统一音频接口（AudioSeal）
-│   │   ├── audioseal_wrapper.py        # AudioSeal封装
-│   │   ├── bark_generator.py           # 可选 Bark TTS
-│   │   ├── utils.py                    # 音频I/O与质量评估
-│   │   └── audioseal/                  # AudioSeal 实现
-│   ├── video_watermark/                # 视频水印
+│   │   ├── audio_watermark.py          # 统一音频接口（支持TTS+上传）
+│   │   ├── audioseal_wrapper.py        # AudioSeal核心封装
+│   │   ├── bark_generator.py           # Bark TTS集成
+│   │   ├── utils.py                    # 音频I/O、质量评估、可视化
+│   │   └── audioseal/                  # AudioSeal算法实现
+│   ├── video_watermark/                # 视频水印（双模式支持）
 │   │   ├── __init__.py
-│   │   ├── video_watermark.py          # 统一视频接口（HunyuanVideo + VideoSeal）
-│   │   ├── hunyuan_video_generator.py  # 文生视频生成（本地快照离线优先）
-│   │   ├── model_manager.py            # 视频模型管理
-│   │   ├── videoseal_wrapper.py        # VideoSeal 嵌入/检测封装
-│   │   └── utils.py                    # 视频I/O与工具
-│   └── utils/                          # 通用工具（如有）
-├── tests/
-│   ├── test_unified_engine.py          # 统一引擎回归（可只测文本）
-│   └── test_video_watermark_demo.py    # 视频端到端演示测试
-├── examples/                           # 用法示例（可选）
+│   │   ├── video_watermark.py          # 统一视频接口（生成+上传）
+│   │   ├── hunyuan_video_generator.py  # HunyuanVideo文生视频
+│   │   ├── model_manager.py            # 模型管理（离线优先）
+│   │   ├── videoseal_wrapper.py        # VideoSeal水印算法
+│   │   └── utils.py                    # 视频I/O、转码、性能监控
+│   └── utils/                          # 通用工具和模型管理
+├── templates/                          # Web界面模板
+│   └── index.html                      # 统一Web演示界面
+├── demo_outputs/                       # 演示输出目录
+├── demo_uploads/                       # 演示上传目录
+├── tests/                              # 测试套件
+│   ├── test_unified_engine.py          # 统一引擎测试
+│   ├── test_video_watermark_demo.py    # 视频端到端测试
+│   └── test_audio_watermark.py         # 音频水印测试
+├── app.py                              # Flask Web应用后端
+├── run_tests.py                        # 统一测试运行器
 ├── audio_watermark_demo.py             # 音频端到端演示
-└── models/                             # 建议的本地模型缓存目录（离线优先）
+└── models/                             # 本地模型缓存目录
 ```
 
 层级关系（自顶向下）：
-- 应用层：`WatermarkTool`（推荐调用入口）
-- 引擎层：`UnifiedWatermarkEngine`（统一路由 text/image/audio/video）
-- 算法层：`text_watermark`、`image_watermark`、`audio_watermark`、`video_watermark`
-- 工具层：`utils`、各模态内部的 I/O、模型管理
+- **Web应用层**：`app.py`（Flask Web后端）+ `templates/index.html`（前端界面）
+- **应用层**：`WatermarkTool`（推荐API入口，支持双模式）
+- **引擎层**：`UnifiedWatermarkEngine`（统一路由 text/image/audio/video）
+- **算法层**：各模态水印实现（支持AI生成+文件上传）
+- **工具层**：`utils`、各模态内部的I/O、模型管理、文件转码
 
 ## 🏗️ 核心架构设计
 
 ### 系统架构概览
 
-本工具采用**分层模块化架构**，从上到下分为：
-1. **用户接口层**：提供统一的API接口和使用示例
-2. **核心引擎层**：WatermarkEngine统一管理所有水印操作
-3. **算法实现层**：具体的水印算法封装和实现
-4. **配置和工具层**：配置管理、模型管理等支持组件
+本工具采用**分层模块化架构**，支持完整的Web演示和API调用：
 
-### 1. 统一水印引擎（UnifiedWatermarkEngine）
+1. **Web演示层**：
+   - Flask Web应用提供REST API和文件服务
+   - 统一前端界面支持双模式切换和对比显示
+   - 实时状态反馈和多媒体播放支持
+
+2. **用户接口层**：
+   - `WatermarkTool`提供统一API接口
+   - 支持AI生成和文件上传两种模式
+   - 自动保存原文件和水印文件用于对比
+
+3. **核心引擎层**：
+   - `UnifiedWatermarkEngine`统一管理所有水印操作
+   - 懒加载和离线优先策略
+   - 双模式处理逻辑和错误恢复
+
+4. **算法实现层**：
+   - 各模态具体算法封装和实现
+   - 后端选择和参数配置管理
+   - 批处理和性能优化
+
+5. **配置和工具层**：
+   - YAML配置文件管理
+   - 模型缓存和离线加载
+   - 文件I/O、转码、质量评估
+
+### 1. 统一水印引擎（UnifiedWatermarkEngine）- 已升级支持双模式
 
 位置：`src/unified/unified_engine.py`（高层封装请使用 `src/unified/watermark_tool.py`）
 
 核心特性：
-- 单一入口 + 懒加载：`embed(prompt, message, modality, **kwargs)` 与 `extract(content, modality, **kwargs)` 统一四模态接口，按需加载模块
-- 默认算法：`text=credid`, `image=videoseal`, `audio=audioseal`, `video=hunyuan+videoseal`
-- 离线优先：文本水印在首次使用时尝试从本地缓存加载模型/分词器（优先配置的模型，其次回退 `sshleifer/tiny-gpt2`）
-- 配置驱动：读取 `config/text_config.yaml`、图像/音频/视频的各自配置（如分辨率、检测参数等）
+- **双模式支持**：每个模态都支持"AI生成内容"和"上传现有文件"两种处理模式
+- **统一接口**：`embed(prompt, message, modality, **kwargs)`和`extract(content, modality, **kwargs)`四模态统一接口，按需懒加载模块
+- **原文件保存**：AI生成模式和文件上传模式都自动保存原文件和水印文件用于Web对比显示
+- **默认算法**：`text=credid`（仅AI生成），`image=videoseal`，`audio=audioseal`，`video=hunyuan+videoseal`
+- **离线优先**：文本/图像/视频模型优先从本地缓存加载，避免网络依赖
+- **配置驱动**：读取`config/default_config.yaml`和`config/text_config.yaml`，支持运行时参数调整
 
-最简用法（推荐通过 `WatermarkTool`）:
+### 🎯 双模式使用示例（推荐通过 `WatermarkTool`）:
 
 ```python
 from src.unified.watermark_tool import WatermarkTool
 
 tool = WatermarkTool()
 
-# 文本（若本地缓存已就绪，将自动加载并缓存模型/分词器）
+# ===== AI生成模式（Generate Mode）=====
+
+# 文本水印（仅支持AI生成模式）
 watermarked_text = tool.embed("这是测试文本", "wm_msg", 'text')
 text_result = tool.extract(watermarked_text, 'text')
+# 返回: {'detected': True, 'message': 'wm_msg', 'confidence': 0.95}
 
-# 图像（VideoSeal为默认后端，可直接返回PIL.Image）
+# 图像AI生成 + 水印嵌入（VideoSeal默认后端）
 img = tool.embed("a cat under the sun", "hello_vs", 'image')
-img_res = tool.extract(img, 'image')
+img_res = tool.extract(img, 'image', replicate=16, chunk_size=16)
+# 后端自动保存original_image.png和watermarked_image.png用于Web对比
 
-# 音频（支持指定 output_path 持久化保存）
-audio_out = tool.embed("audio content", "hello_audio", 'audio', output_path="outputs/audio/a.wav")
+# 音频AI生成（Bark TTS）+ 水印嵌入
+audio_out = tool.embed("Hello world", "hello_audio", 'audio', 
+                      output_path="outputs/audio/generated.wav")
 audio_res = tool.extract(audio_out, 'audio')
+# 后端自动保存original_audio.wav和watermarked_audio.wav
 
-# 视频（生成+嵌入，默认保存到 tests/test_results/ 或自定义路径）
-video_path = tool.embed("阳光洒在海面上", "video_wm", 'video')
+# 视频AI生成（HunyuanVideo）+ 水印嵌入
+video_path = tool.embed("阳光洒在海面上", "video_wm", 'video',
+                       num_frames=49, height=720, width=1280)
 video_res = tool.extract(video_path, 'video')
+# 后端自动保存original_video.mp4和watermarked_video.mp4
+
+
+# ===== 上传文件模式（Upload File Mode）=====
+
+# 图像文件水印嵌入
+img_wm = tool.embed("watermark message", "file_msg", 'image',
+                    image_input="/path/to/image.jpg")
+img_file_res = tool.extract(img_wm, 'image')
+
+# 音频文件水印嵌入  
+audio_wm = tool.embed("audio watermark", "audio_msg", 'audio',
+                     audio_input="/path/to/audio.wav",
+                     output_path="outputs/watermarked_audio.wav")
+audio_file_res = tool.extract(audio_wm, 'audio')
+
+# 视频文件水印嵌入（自动转码为浏览器兼容格式）
+video_wm = tool.embed("video watermark", "video_msg", 'video',
+                     video_input="/path/to/video.mp4")
+video_file_res = tool.extract(video_wm, 'video')
 ```
 
-重要参数与返回：
-- 文本 `embed(prompt, message, 'text', model=None, tokenizer=None)` → `str`（自动使用引擎缓存的模型/分词器；若离线未就绪会抛错）
-- 图像 `embed(prompt, message, 'image', image_input=None, **kwargs)` → `PIL.Image`
-- 音频 `embed('audio content', message, 'audio', audio_input=tensor|path, output_path=None)` → `torch.Tensor | str`
-- 视频 `embed(prompt, message, 'video', output_path=None, **kwargs)` → `str`
-- 各模态 `extract(...)` → 统一字典：`{detected: bool, message: str, confidence: float, metadata: dict}`
+### 📋 重要参数与返回值（双模式支持）：
 
-离线/缓存建议：
-- 设置 `TRANSFORMERS_OFFLINE=1`、`HF_HUB_OFFLINE=1`，并将本地模型缓存放在 `models/` 或通过 `HF_HOME`/`HF_HUB_CACHE` 指向
-- 文本默认读取 `config/text_config.yaml` 的 `model_name`；若缓存未命中，将回退尝试 `sshleifer/tiny-gpt2`（同样离线加载）
+#### 文本水印（仅AI生成模式）
+- **接口**: `embed(prompt, message, 'text', model=None, tokenizer=None)` → `str`
+- **说明**: 基于LLM的文本生成与水印嵌入，自动使用引擎缓存的模型/分词器
+- **返回**: 水印文本字符串
+- **提取**: `extract(watermarked_text, 'text')` → `{detected: bool, message: str, confidence: float}`
+
+#### 图像水印（双模式支持）
+- **AI生成模式**: `embed(prompt, message, 'image', **kwargs)` → `PIL.Image`  
+- **上传文件模式**: `embed(message, watermark_msg, 'image', image_input='/path/to/image.jpg')` → `PIL.Image`
+- **后端选择**: VideoSeal（默认）或PRC-Watermark（配置algorithm: prc）
+- **Web保存**: 自动保存original和watermarked文件用于对比显示
+- **提取优化**: 支持`replicate`和`chunk_size`参数提升检测置信度
+
+#### 音频水印（双模式支持）
+- **AI生成模式**: `embed(tts_prompt, message, 'audio', output_path=None)` → `torch.Tensor | str`
+- **上传文件模式**: `embed(message, watermark_msg, 'audio', audio_input='/path/to/audio.wav')` → `torch.Tensor | str`
+- **TTS集成**: Bark文本转语音，支持多语言和音色选择
+- **格式支持**: WAV, MP3, FLAC, AAC, M4A等音频格式
+- **Web保存**: 自动保存original和watermarked音频用于对比播放
+
+#### 视频水印（双模式支持）  
+- **AI生成模式**: `embed(prompt, message, 'video', num_frames=49, height=720, width=1280)` → `str`
+- **上传文件模式**: `embed(message, watermark_msg, 'video', video_input='/path/to/video.mp4')` → `str`
+- **技术栈**: HunyuanVideo文生视频 + VideoSeal水印算法
+- **浏览器兼容**: 自动转码为H.264+AAC+faststart格式确保Web播放
+- **Web保存**: 自动保存original和watermarked视频用于对比播放
+
+#### 统一提取接口
+- **所有模态**: `extract(content, modality, **kwargs)` → `{detected: bool, message: str, confidence: float, metadata: dict}`
+- **增强参数**: 图像/视频支持`replicate`和`chunk_size`，视频支持`max_frames`限制
+
+### 🔧 离线/缓存配置建议：
+- **环境变量**: 设置`TRANSFORMERS_OFFLINE=1`、`HF_HUB_OFFLINE=1`强制离线加载
+- **模型缓存**: 将模型放在`models/`目录或通过`HF_HOME`/`HF_HUB_CACHE`指向本地缓存
+- **文本模型**: 默认读取`config/text_config.yaml`的`model_name`，缓存未命中时回退`sshleifer/tiny-gpt2`
+- **视频模型**: HunyuanVideo使用本地快照，避免网络下载不确定性
 
 ### 2. 文本水印模块 (CredID Algorithm) ✅ **已实现**
 
 **CredID算法原理**：
 - **多位水印**：支持嵌入多段信息（如用户ID、时间戳、版本号等）
 - **logits处理**：在语言模型的logits输出上进行修改，影响token选择概率
-- **双模式支持**：LM模式（高质量）和Random模式（高效率）
+- **双模式支持**：LM模式（高质量
 - **候选优化**：支持候选消息列表的限制搜索，提升检测效率
 - **智能分割**：自动处理复杂消息格式（如"log20250725143000"）
 
@@ -139,7 +234,7 @@ class CredIDWatermark:
     
     ✨ 核心功能特点:
     1. 支持多种消息格式 (字符串、整数列表、字符串列表)
-    2. 双模式运行: LM模式(高质量) / Random模式(高效率)
+    2. 双模式运行: LM模式(高质量)
     3. 智能多段消息处理和自动分割
     4. 候选消息优化搜索机制
     5. 完整的错误处理和置信度评估
@@ -152,7 +247,7 @@ class CredIDWatermark:
         
         Args:
             config: 配置字典，必须包含:
-                - mode: 'lm' 或 'random' (默认'lm')
+                - mode: 'lm' (默认'lm')
                 - model_name: 预训练模型名称
                 - lm_params: LM模式参数字典
                 - wm_params: 水印处理参数字典
@@ -211,7 +306,7 @@ class CredIDWatermark:
                 'prompt': str,                # 输入提示
                 'success': bool,              # ✅/❌ 是否成功
                 'metadata': {                 # 详细元数据
-                    'mode': str,              # 使用的模式 ('lm'/'random')
+                    'mode': str,              # 使用的模式 ('lm')
                     'model_name': str,        # 模型名称
                     'input_length': int,      # 输入token长度
                     'output_length': int,     # 输出token长度
@@ -248,8 +343,8 @@ class CredIDWatermark:
         
         📥 参数说明:
             watermarked_text: 可能包含水印的文本
-            model: 语言模型 (LM模式必需，Random模式可选)
-            tokenizer: 分词器 (LM模式必需，Random模式可选)
+            model: 语言模型 (LM模式必需)
+            tokenizer: 分词器 (LM模式必需)
             candidates_messages: 候选消息列表，用于优化搜索
                 🎯 推荐使用: 可大幅提升检测精度和效率
                 例如: ["log20250725143000", "user987654321", "admin2025"]
@@ -312,7 +407,7 @@ class CredIDWatermark:
 # config/text_config.yaml - 完整配置示例
 method: "CredID"
 model_name: "huggyllama/llama-7b"          
-mode: "lm"                                 # 'lm'(高质量) / 'random'(高效率)
+mode: "lm"                                 # 'lm'(高质量) /
 device: "auto"                             
 
 # === 生成参数 ===
@@ -336,7 +431,7 @@ lm_params:
 
 # === 水印处理参数 ===
 wm_params:
-  encode_ratio: 8                         # 编码比率 (每消息位对应的token数)
+  encode_ratio: 4                         # 编码比率 (每消息位对应的token数)
   seed: 42                                
   strategy: "vanilla"                     # 'vanilla'/'max_confidence'
   max_confidence: 0.5                     
@@ -437,483 +532,12 @@ except Exception as e:
 | 特性 | 描述 | 优势 |
 |------|------|------|
 | **多消息格式** | 支持字符串、列表、复杂格式 | 灵活性高，适应不同场景 |
-| **双模式运行** | LM模式(高质量) / Random模式(高效率) | 平衡质量和性能 |
 | **候选优化** | 限制搜索空间提升效率 | 大幅提升检测精度 |
 | **智能分割** | 自动处理复杂消息格式 | 无需手动预处理 |
 | **简化架构** | 去除复杂的按位置分组逻辑 | 代码更清晰，维护性好 |
 | **错误处理** | 完整的异常处理机制 | 生产环境可靠性高 |
 | **性能监控** | 内置时间和资源使用统计 | 便于性能调优 |
 
-**🎯 为图像水印和统一引擎提供的设计参考:**
-
-1. **🏗️ 统一接口模式**: `embed(model, tokenizer, prompt, message)` → `extract(text, model, tokenizer, candidates)`
-2. **⚙️ 配置驱动设计**: 通过YAML文件管理所有算法参数
-3. **📋 标准返回格式**: 统一的 `{success, result, metadata, error}` 结构
-4. **🔍 候选优化机制**: 支持候选列表的高效搜索策略
-5. **🎨 多模态消息**: 支持多种输入格式的智能编码
-6. **🛡️ 健壮错误处理**: 详细的状态报告和异常管理
-7. **📈 性能监控**: 内置时间和资源使用统计
-
-### 3. 图像水印模块 (PRC-Watermark) ✅ **已实现**
-
-**PRC算法原理**：
-- **伪随机纠错码水印**：基于Stable Diffusion的潜空间水印嵌入
-- **完整扩散逆向**：通过exact_inversion实现精确的图像到潜变量转换
-- **多精度检测**：支持fast/accurate/exact三种不同精度等级
-- **100%检测成功率**：所有模式都能完美检测并解码水印消息
-- **本地模型支持**：离线模式使用缓存的Stable Diffusion 2.1模型
-
-**实际实现的核心架构**：
-
-```python
-# src/image_watermark/prc_watermark.py
-import os
-import torch
-from PIL import Image
-from typing import Dict, Any, Optional, Union, Tuple
-import pickle
-
-class PRCWatermark:
-    """
-    PRC图像水印算法统一封装
-    
-    ✨ 核心功能特点:
-    1. 统一的exact_inversion实现，消除代码冗余
-    2. 参数化模式控制：通过decoder_inv和inference_steps调节精度
-    3. 完整的离线模式支持，使用本地Stable Diffusion模型
-    4. GPU/CPU tensor设备自动转换和梯度管理
-    5. 密钥管理和缓存机制
-    6. 100%检测成功率，支持完美水印解码
-    """
-    
-    def __init__(self, 
-                 model_id: str = "stabilityai/stable-diffusion-2-1-base",
-                 keys_dir: str = "watermark_keys",
-                 cache_dir: Optional[str] = None,
-                 device: Optional[str] = None,
-                 **kwargs):
-        """
-        初始化PRC水印处理器
-        
-        Args:
-            model_id: Stable Diffusion模型ID
-            keys_dir: 密钥存储目录
-            cache_dir: 模型缓存目录 (支持离线模式)
-            device: 计算设备 ('cuda', 'cpu', 或 None 自动选择)
-            **kwargs: 其他PRC算法参数
-        """
-        self.model_id = model_id
-        self.keys_dir = keys_dir
-        self.cache_dir = cache_dir
-        self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
-        
-        # PRC算法参数
-        self.n = kwargs.get('n', 1024)  # 码长
-        self.k = kwargs.get('k', 512)   # 信息位数
-        self.false_positive_rate = kwargs.get('false_positive_rate', 1e-6)
-        
-        # 确保密钥目录存在
-        os.makedirs(self.keys_dir, exist_ok=True)
-        
-        # 延迟初始化组件
-        self.pipe = None
-        self._key_cache = {}
-        
-        # 设置离线模式和模型管道
-        self._setup_diffusion_pipe()
-```
-
-**🔹 核心接口 1: embed() - 水印嵌入**
-
-```python
-    def embed(self, 
-              prompt: str,
-              message: str, 
-              key_id: str = "default",
-              num_inference_steps: int = 50,
-              guidance_scale: float = 7.5,
-              seed: Optional[int] = None,
-              **kwargs) -> Image.Image:
-        """
-        🎯 核心功能: 在图像生成过程中嵌入PRC水印
-        
-        📋 详细工作流程:
-        1. 获取或生成PRC密钥对 (encoding_key, decoding_key)
-        2. 将消息字符串编码为二进制序列
-        3. 使用PRC编码算法生成伪随机码字
-        4. 在Stable Diffusion的潜空间中嵌入码字
-        5. 生成带水印的高质量图像
-        
-        📥 参数说明:
-            prompt: 图像生成提示词，如 "A beautiful sunset over the ocean"
-            message: 水印信息，支持任意长度字符串
-            key_id: 密钥标识符，用于密钥管理和复用
-            num_inference_steps: 扩散采样步数 (默认50，影响质量和速度)
-            guidance_scale: 提示词引导强度 (默认7.5)
-            seed: 随机种子，用于可重现生成
-            **kwargs: 其他生成参数
-                
-        📤 返回值:
-            PIL.Image: 带水印的512x512图像
-            
-        🚨 错误情况:
-            抛出RuntimeError异常，包含详细错误信息
-        """
-        # 获取密钥
-        encoding_key, _ = self._get_or_create_keys(key_id)
-        
-        # 消息编码
-        message_bits = str_to_bin(message)
-        prc_codeword = Encode(encoding_key, message_bits)
-        
-        # 伪随机潜变量采样
-        latents = prc_gaussians.sample(
-            codeword=prc_codeword,
-            shape=(1, 4, 64, 64),  # Stable Diffusion潜空间形状
-            device=self.device
-        )
-        
-        # 生成带水印图像
-        with torch.no_grad():
-            image = generate(
-                pipe=self.pipe,
-                prompt=prompt,
-                init_latents=latents,
-                num_inference_steps=num_inference_steps,
-                guidance_scale=guidance_scale,
-                seed=seed,
-                **kwargs
-            )
-        
-        return image
-```
-
-**🔹 核心接口 2: extract() - 水印提取**
-
-```python
-    def extract(self, 
-                image: Union[str, Image.Image, torch.Tensor],
-                key_id: str = "default", 
-                mode: str = 'accurate',
-                prompt: Optional[str] = None,
-                **kwargs) -> Dict[str, Any]:
-        """
-        🎯 核心功能: 从图像中提取PRC水印信息
-        
-        📋 详细工作流程:
-        1. 图像预处理和格式转换
-        2. 使用exact_inversion进行图像逆向 (关键步骤)
-        3. 从潜变量中恢复后验概率
-        4. PRC解码器检测和解码水印
-        5. 返回检测结果和置信度
-        
-        📥 参数说明:
-            image: 输入图像，支持多种格式:
-                - str: 图像文件路径
-                - PIL.Image: PIL图像对象  
-                - torch.Tensor: 潜变量tensor
-            key_id: 密钥标识符，必须与嵌入时一致
-            mode: 逆向精度模式，影响检测精度和速度:
-                - 'fast': 20步推理，decoder_inv=False，0.19秒
-                - 'accurate': 50步推理，decoder_inv=True，13.7秒 (推荐)
-                - 'exact': 50步推理，decoder_inv=True，52.15秒 (最高精度)
-            prompt: 原始生成提示词 (可选，有助于提升exact模式精度)
-            **kwargs: 其他逆向参数
-                
-        📤 返回值结构:
-            {
-                'detected': bool,           # 🎯 是否检测到水印
-                'message': str,             # 📤 解码的消息 (检测成功时)
-                'confidence': float,        # 🎚️ 检测置信度 (0.0-1.0)
-                'mode_used': str,           # 实际使用的逆向模式
-                'processing_time': float,   # 处理耗时 (秒)
-                'metadata': {               # 详细元数据
-                    'image_size': tuple,    # 图像尺寸
-                    'latent_shape': tuple,  # 潜变量形状
-                    'algorithm': 'PRC',     # 算法名称
-                    'key_id': str,          # 使用的密钥ID
-                    'false_positive_rate': float  # 虚警率
-                }
-            }
-            
-        🚨 失败情况返回:
-            {
-                'detected': False,
-                'message': None,
-                'confidence': 0.0,
-                'error': str               # 错误信息
-            }
-        """
-        # 获取解码密钥
-        _, decoding_key = self._get_or_create_keys(key_id)
-        
-        # 图像到潜变量转换 (核心逆向过程)
-        if not isinstance(image, torch.Tensor):
-            latents = self._image_to_latents(image, mode=mode, prompt=prompt)
-        else:
-            latents = image
-        
-        # 计算后验概率 - 确保tensor在CPU上且分离梯度
-        latents_cpu = latents.detach().cpu() if hasattr(latents, 'detach') else latents
-        if hasattr(latents_cpu, 'cpu'):
-            latents_cpu = latents_cpu.cpu()
-        posteriors = prc_gaussians.recover_posteriors(latents_cpu.flatten())
-        
-        # 检测水印
-        detected = Detect(decoding_key, posteriors, self.false_positive_rate)
-        
-        result = {
-            'detected': detected,
-            'message': None,
-            'confidence': 0.0,
-            'mode_used': mode if not isinstance(image, torch.Tensor) else 'tensor_input'
-        }
-        
-        if detected:
-            # 解码消息
-            decoded_bits = Decode(decoding_key, posteriors)
-            try:
-                decoded_message = bin_to_str(decoded_bits)
-                result['message'] = decoded_message
-                result['confidence'] = 1.0  # PRC提供确定性检测
-            except Exception as e:
-                result['confidence'] = 0.6  # 检测到但解码失败
-        
-        return result
-```
-
-**🔧 核心内部方法 - 统一逆向实现**
-
-```python
-    def _image_to_latents(self, image: Image.Image, mode: str = 'accurate', 
-                         prompt: Optional[str] = None) -> torch.Tensor:
-        """
-        🎯 核心方法: 将PIL图像转换为潜变量，统一使用exact_inversion
-        
-        📋 实现策略:
-        - 所有模式都使用相同的exact_inversion函数
-        - 通过参数调节实现不同精度等级
-        - 消除代码冗余，保持架构简洁
-        
-        Args:
-            image: PIL图像
-            mode: 逆向模式 ('fast', 'accurate', 'exact')
-            prompt: 提示词（可选，默认为空字符串）
-            
-        Returns:
-            潜变量tensor
-        """
-        if not PRC_AVAILABLE:
-            raise RuntimeError("PRC dependencies not available")
-            
-        if prompt is None:
-            prompt = ""  # 使用空提示词作为默认值
-            
-        # 根据模式设置不同的参数
-        if mode == 'fast':
-            # 快速模式：使用较少的推理步数和简单逆向
-            decoder_inv = False
-            num_inference_steps = 20
-            test_num_inference_steps = 20
-        elif mode == 'accurate':
-            # 精确模式：使用decoder_inv优化求解
-            decoder_inv = True
-            num_inference_steps = 50
-            test_num_inference_steps = 50
-        elif mode == 'exact':
-            # 完整模式：最高精度设置
-            decoder_inv = True
-            num_inference_steps = 50
-            test_num_inference_steps = 50
-        else:
-            raise ValueError(f"Unsupported mode: {mode}")
-        
-        # 使用PRC-Watermark的exact_inversion函数
-        reversed_latents = exact_inversion(
-            image=image,
-            prompt=prompt, 
-            guidance_scale=3.0,
-            num_inference_steps=num_inference_steps,
-            solver_order=1,
-            test_num_inference_steps=test_num_inference_steps,
-            inv_order=1,
-            decoder_inv=decoder_inv,
-            model_id=self.model_id,
-            pipe=self.pipe
-        )
-        
-        return reversed_latents
-```
-
-**⚙️ 配置参数详解**
-
-```yaml
-# config/image_config.yaml - 完整配置示例
-method: "PRC"
-model_id: "stabilityai/stable-diffusion-2-1-base"
-device: "auto"                          # 'cuda', 'cpu', 'auto'
-
-# === 密钥管理 ===
-keys_dir: "watermark_keys"
-cache_dir: "/path/to/huggingface/cache"  # 本地模型缓存
-
-# === PRC算法参数 ===
-prc_params:
-  n: 1024                              # 码长
-  k: 512                               # 信息位数
-  false_positive_rate: 1.0e-6          # 虚警率
-
-# === 生成参数 ===
-generation_params:
-  num_inference_steps: 50              # 采样步数
-  guidance_scale: 7.5                  # 引导强度
-  height: 512                          # 图像高度
-  width: 512                           # 图像宽度
-
-# === 逆向参数 ===
-inversion_params:
-  default_mode: "accurate"             # 默认逆向模式
-  fast_steps: 20                       # 快速模式步数
-  accurate_steps: 50                   # 精确模式步数
-  exact_steps: 50                      # 完整模式步数
-```
-
-**🚀 实际使用示例和最佳实践**
-
-```python
-# === 完整使用示例 ===
-from src.image_watermark.prc_watermark import PRCWatermark
-from PIL import Image
-import time
-
-# 1. 初始化系统 (支持离线模式)
-prc = PRCWatermark(
-    model_id="stabilityai/stable-diffusion-2-1-base",
-    keys_dir="test_keys",
-    cache_dir="/path/to/local/models",  # 本地模型路径
-    device="cuda"
-)
-
-# 2. 🎯 基础水印嵌入
-print("=== 基础水印嵌入 ===")
-start_time = time.time()
-
-watermarked_image = prc.embed(
-    prompt="A beautiful sunset over the ocean",
-    message="Hello PRC!",
-    key_id="demo_key",
-    seed=42
-)
-
-embed_time = time.time() - start_time
-print(f"✅ 嵌入完成: {embed_time:.2f}秒")
-print(f"图像尺寸: {watermarked_image.size}")
-
-# 保存图像
-watermarked_image.save("watermarked_sunset.png")
-
-# 3. 🎯 多模式水印检测对比
-print("\n=== 多模式检测对比 ===")
-modes = ['fast', 'accurate', 'exact']
-
-for mode in modes:
-    start_time = time.time()
-    
-    result = prc.extract(
-        image=watermarked_image,
-        key_id="demo_key",
-        mode=mode
-    )
-    
-    extract_time = time.time() - start_time
-    
-    status = "✅" if result['detected'] else "❌"
-    print(f"{mode.upper():>8}: {status} | 耗时: {extract_time:.2f}s | 消息: {result.get('message', 'None')}")
-
-# 4. 🎯 批量处理测试
-print("\n=== 批量处理测试 ===")
-test_cases = [
-    ("A red car", "car001"),
-    ("A blue house", "house002"), 
-    ("A green tree", "tree003")
-]
-
-batch_results = []
-batch_start = time.time()
-
-for prompt, message in test_cases:
-    # 嵌入
-    image = prc.embed(prompt=prompt, message=message, key_id="batch_key")
-    
-    # 提取 (使用accurate模式)
-    result = prc.extract(image=image, key_id="batch_key", mode='accurate')
-    
-    batch_results.append({
-        'prompt': prompt,
-        'original': message,
-        'detected': result['detected'],
-        'extracted': result.get('message'),
-        'success': result['detected'] and result.get('message') == message
-    })
-
-batch_time = time.time() - batch_start
-success_rate = sum(1 for r in batch_results if r['success']) / len(batch_results)
-
-print(f"⏱️ 批量处理({len(test_cases)}张): {batch_time:.2f}秒")
-print(f"🎯 成功率: {success_rate:.1%}")
-
-for i, result in enumerate(batch_results):
-    status = "✅" if result['success'] else "❌"
-    print(f"  {i+1}. {status} {result['prompt']}: {result['original']} → {result['extracted']}")
-
-# 5. 🎯 文件路径处理
-print("\n=== 文件路径处理 ===")
-# 从文件路径直接提取
-file_result = prc.extract(
-    image="watermarked_sunset.png",  # 直接使用文件路径
-    key_id="demo_key",
-    mode='fast'
-)
-
-print(f"文件检测: {'✅' if file_result['detected'] else '❌'} | 消息: {file_result.get('message', 'None')}")
-
-# 6. 🎯 性能监控和统计
-print("\n=== 性能统计 ===")
-print(f"模型ID: {prc.model_id}")
-print(f"设备: {prc.device}")
-print(f"密钥目录: {prc.keys_dir}")
-print(f"缓存密钥数: {len(prc._key_cache)}")
-```
-
-**📊 性能基准和特点总结**
-
-| 模式 | 检测成功率 | 处理时间 | 适用场景 | 技术特点 |
-|------|------------|----------|----------|----------|
-| **FAST** | 100% | 0.19秒 | 实时应用 | decoder_inv=False，20步推理 |
-| **ACCURATE** | 100% | 13.7秒 | 生产环境 | decoder_inv=True，50步推理 |
-| **EXACT** | 100% | 52.15秒 | 研究分析 | 完整扩散逆向，最高精度 |
-
-**🔧 技术实现亮点**：
-
-| 特性 | 描述 | 优势 |
-|------|------|------|
-| **统一逆向实现** | 所有模式使用同一个exact_inversion函数 | 代码简洁，维护性好 |
-| **参数化控制** | 通过decoder_inv和steps参数调节精度 | 灵活配置，避免重复代码 |
-| **离线模式支持** | 本地模型缓存，无需网络连接 | 部署灵活，隐私保护 |
-| **设备自适应** | 自动GPU/CPU转换和梯度管理 | 兼容性强，错误处理完善 |
-| **密钥管理** | 自动密钥生成、缓存和复用 | 便于多项目管理 |
-| **100%成功率** | 所有模式都能完美检测解码 | 生产环境可靠性高 |
-
-**🎯 与文本水印的统一接口对比**：
-
-| 接口要素 | 文本水印 | 图像水印 | 统一设计 |
-|----------|----------|----------|----------|
-| **输入格式** | `(model, tokenizer, prompt, message)` | `(prompt, message, key_id)` | 简化参数，隐藏复杂性 |
-| **输出格式** | `{watermarked_text, success, metadata}` | `PIL.Image` | 直接返回结果对象 |
-| **检测输入** | `(text, model, tokenizer, candidates)` | `(image, key_id, mode)` | 支持多种输入格式 |
-| **检测输出** | `{extracted_message, confidence, success}` | `{detected, message, confidence}` | 统一结构设计 |
-| **配置管理** | YAML配置文件驱动 | YAML配置文件驱动 | 一致的配置方式 |
-| **错误处理** | 详细异常信息和状态 | 详细异常信息和状态 | 统一错误处理机制 |
 
 ## 🆕 2025-08 更新摘要（diffusers==0.34 兼容 + VideoSeal 图像后端）
 
@@ -986,30 +610,6 @@ python test_image_videoseal_root.py --mode gen  --device cuda --resolution 512 -
 - **高保真嵌入**：SNR>40dB（实测44.45dB），听觉质量几乎无损失，100%检测成功率
 - **设备自适应优化**：支持CPU/CUDA自动切换和设备张量管理，修复设备不匹配问题
 - **高效批处理**：3个音频2.8秒，并行处理优化，支持大规模应用
-
-## 🚨 已知问题与限制
-
-### Bark TTS 缓存问题
-
-**问题描述**:
-- Bark TTS存在双重缓存系统问题，会同时使用HuggingFace缓存目录和专用的Suno缓存目录
-- 即使设置了`HF_HOME`或`CACHE_DIR`，Bark仍会在`/root/.cache/suno/`下载约8.4GB的模型文件
-- 这导致磁盘空间重复占用，特别是在存储空间有限的环境中
-
-**根本原因**:
-- Bark使用独立的模型管理系统，不完全遵循HuggingFace的缓存配置
-- 存在两套缓存逻辑：HuggingFace标准缓存 + Suno专用缓存
-
-**当前受限功能**:
-- 文本转语音功能 (`generate_audio_with_watermark`)
-- 高级音频水印演示 (`demo_text_to_audio_watermark`)
-- 完整模式演示 (`python audio_watermark_demo.py --mode full`)
-
-**不受影响的功能**:
-- 基础音频水印功能 (AudioSeal嵌入/提取)
-- 基础模式演示 (`python audio_watermark_demo.py --mode basic`)
-- 音频文件处理和质量评估
-- 批处理功能
 
 **已实现的核心架构与性能**：
 
@@ -1599,3 +1199,361 @@ python -u unified_watermark_tool/tests/test_video_watermark_demo.py
 - 仅离线加载本地 HunyuanVideo 快照（`local_files_only=True`）。
 - CUDA 环境下启用 `vae.enable_tiling()` 与 `enable_model_cpu_offload()`；避免与 `device_map` 并用。
 - 5秒@15fps 推荐 `num_frames=75` 与 `320x512` 分辨率；如 OOM，生成器会自适应降参重试。
+
+## 🏷️ 可见标识模块（Visible Marking for Compliance）
+
+本模块为已有的多媒体文件添加显式可见标识，满足AI生成内容的监管合规要求。支持对用户上传的图像、音频、视频文件添加标准化的可见标记，确保内容来源可识别。
+
+### 核心特性
+- **多模态支持**：支持图像、音频、视频文件的可见标识添加
+- **文本模式**：支持纯文本内容的标识文案插入
+- **合规标准**：内置标准合规文案，支持自定义标识内容
+- **位置控制**：支持灵活的标识位置和样式配置
+- **浏览器兼容**：自动处理格式转码，确保Web播放兼容性
+- **对比显示**：保留原文件供对比展示
+
+### 架构实现
+位置：`src/utils/visible_mark.py`
+
+核心功能模块：
+- `add_text_mark_to_text()`: 文本内容标识添加
+- `add_overlay_to_image()`: 图像可见标识叠加
+- `add_overlay_to_video_ffmpeg()`: 视频可见标识叠加（基于FFmpeg）
+- `add_voice_mark_to_audio()`: 音频语音标识添加（基于Bark TTS）
+
+### 🔹 图像可见标识接口
+
+```python
+def add_overlay_to_image(image: Image.Image, 
+                        text: str, 
+                        position: str = 'bottom_right',
+                        font_percent: float = 5.0,
+                        font_color: str = '#FFFFFF',
+                        bg_rgba: Optional[tuple] = None) -> Image.Image:
+    """
+    🎯 核心功能: 在图像上添加可见文字标识
+    
+    📋 详细工作流程:
+    1. 根据图像尺寸计算字体大小和位置
+    2. 创建透明图层进行文字绘制
+    3. 应用抗锯齿和阴影效果提升可读性
+    4. 合成最终带标识的图像
+    
+    📥 参数说明:
+        image: PIL图像对象
+        text: 标识文字，如 "本内容由人工智能生成/合成"
+        position: 标识位置
+            - 'top_left': 左上角
+            - 'top_right': 右上角  
+            - 'bottom_left': 左下角
+            - 'bottom_right': 右下角（默认）
+            - 'center': 居中
+        font_percent: 字体大小占图像宽度的百分比 (1.0-15.0，默认5.0)
+        font_color: 字体颜色，支持十六进制 '#FFFFFF' 或颜色名 'white'
+        bg_rgba: 背景颜色 (R,G,B,A)，None表示无背景
+        
+    📤 返回值:
+        PIL.Image: 带有可见标识的图像
+        
+    🚨 使用示例:
+        from PIL import Image
+        from src.utils.visible_mark import add_overlay_to_image
+        
+        img = Image.open("input.jpg")
+        marked_img = add_overlay_to_image(
+            img, 
+            "本内容由人工智能生成",
+            position="bottom_right",
+            font_percent=4.0,
+            font_color="#FFFF00"
+        )
+        marked_img.save("output.jpg")
+    """
+```
+
+### 🔹 视频可见标识接口
+
+```python
+def add_overlay_to_video_ffmpeg(input_path: str,
+                               output_path: str,
+                               text: str,
+                               position: str = 'bottom_right',
+                               font_percent: float = 5.0,
+                               duration_seconds: float = 2.0,
+                               font_color: str = 'white',
+                               box_color: str = 'transparent') -> str:
+    """
+    🎯 核心功能: 使用FFmpeg在视频上添加可见文字标识
+    
+    📋 详细工作流程:
+    1. 检测视频分辨率和帧率信息
+    2. 计算字体大小和标识显示位置
+    3. 使用FFmpeg drawtext滤镜叠加文字
+    4. 输出浏览器兼容格式的标识视频
+    
+    📥 参数说明:
+        input_path: 输入视频文件路径
+        output_path: 输出视频文件路径
+        text: 标识文字内容
+        position: 标识位置，支持与图像相同的位置选项
+        font_percent: 字体大小占视频宽度的百分比 (1.0-10.0，默认5.0)
+        duration_seconds: 标识显示时长（秒，默认2.0秒）
+        font_color: 字体颜色，支持FFmpeg颜色名称
+        box_color: 文字背景框颜色，'transparent'表示透明
+        
+    📤 返回值:
+        str: 输出视频文件路径
+        
+    🚨 使用示例:
+        from src.utils.visible_mark import add_overlay_to_video_ffmpeg
+        
+        output_path = add_overlay_to_video_ffmpeg(
+            "input.mp4",
+            "output.mp4", 
+            "本内容由人工智能生成",
+            position="bottom_right",
+            font_percent=3.0,
+            duration_seconds=3.0,
+            font_color="yellow"
+        )
+        print(f"标识视频已保存: {output_path}")
+    """
+```
+
+### 🔹 音频可见标识接口
+
+```python
+def add_voice_mark_to_audio(input_path: str,
+                           output_path: str, 
+                           mark_text: str,
+                           position: str = 'start',
+                           voice_preset: str = 'v2/zh_speaker_6') -> str:
+    """
+    🎯 核心功能: 在音频文件中添加语音标识（需要Bark TTS）
+    
+    📋 详细工作流程:
+    1. 使用Bark TTS生成标识语音片段
+    2. 加载原始音频文件
+    3. 根据位置参数混合语音标识和原始音频
+    4. 输出带有语音标识的最终音频文件
+    
+    📥 参数说明:
+        input_path: 输入音频文件路径（支持WAV, MP3等）
+        output_path: 输出音频文件路径
+        mark_text: 标识语音内容，如 "本内容由人工智能生成" 
+        position: 标识位置
+            - 'start': 音频开头（默认）
+            - 'end': 音频结尾
+        voice_preset: Bark语音预设
+            - 'v2/zh_speaker_6': 中文女声（默认）
+            - 'v2/en_speaker_6': 英文女声
+            - 其他Bark支持的预设
+            
+    📤 返回值:
+        str: 输出音频文件路径
+        
+    🚨 依赖要求:
+        需要安装Bark TTS: pip install git+https://github.com/suno-ai/bark.git
+        
+    🚨 使用示例:
+        from src.utils.visible_mark import add_voice_mark_to_audio
+        
+        output_path = add_voice_mark_to_audio(
+            "input.wav",
+            "output.wav",
+            "本内容由人工智能生成", 
+            position="start",
+            voice_preset="v2/zh_speaker_6"
+        )
+        print(f"标识音频已保存: {output_path}")
+    """
+```
+
+### 🔹 文本可见标识接口
+
+```python
+def add_text_mark_to_text(text: str, 
+                         mark: str = "本内容由人工智能生成/合成",
+                         position: str = 'start') -> str:
+    """
+    🎯 核心功能: 在文本内容中插入可见标识文案
+    
+    📋 详细工作流程:
+    1. 根据位置参数确定插入点
+    2. 处理标识文案的格式化（换行、分隔符等）
+    3. 将标识文案与原始文本合并
+    4. 返回带标识的完整文本
+    
+    📥 参数说明:
+        text: 原始文本内容
+        mark: 标识文案，默认合规文案
+        position: 插入位置
+            - 'start': 文本开头（默认）
+            - 'end': 文本结尾
+            
+    📤 返回值:
+        str: 带有可见标识的文本
+        
+    🚨 使用示例:
+        from src.utils.visible_mark import add_text_mark_to_text
+        
+        original_text = "这是一段示例文本内容。"
+        marked_text = add_text_mark_to_text(
+            original_text,
+            mark="本内容由AI生成",
+            position="start" 
+        )
+        print(marked_text)
+        # 输出: 本内容由AI生成\n\n这是一段示例文本内容。
+    """
+```
+
+### Web API集成
+
+可见标识功能已完全集成到Flask Web应用中，提供RESTful API接口：
+
+#### API端点
+- **路径**: `/api/visible_mark`
+- **方法**: `POST`
+- **功能**: 为上传的文件添加可见标识
+
+#### 请求参数
+```javascript
+// 表单数据格式
+{
+    "modality": "image|audio|video|text",    // 模态类型
+    "mark_text": "标识内容",                   // 自定义标识文字
+    "file": File,                            // 上传的文件（文本模态除外）
+    "text": "文本内容",                       // 文本模态专用
+    
+    // 图像专用参数
+    "position": "bottom_right",              // 标识位置
+    "font_percent": 5.0,                     // 字体大小百分比
+    "font_color": "#FFFFFF",                 // 字体颜色
+    
+    // 视频专用参数  
+    "duration_seconds": 2.0,                 // 显示时长
+    
+    // 音频专用参数
+    "voice_preset": "v2/zh_speaker_6"        // 语音预设
+}
+```
+
+#### 响应格式
+```json
+{
+    "task_id": "task_1757324404_71c759dc",
+    "status": "completed",
+    "output_path": "/demo_outputs/task_1757324404_marked_image.png",
+    "timestamp": "2025-01-08T12:34:56"
+}
+```
+
+### 使用示例：Web界面集成
+
+前端JavaScript调用示例：
+```javascript
+// 图像可见标识
+function addVisibleMarkToImage(file, markText, position, fontSize, fontColor) {
+    const formData = new FormData();
+    formData.append('modality', 'image');
+    formData.append('file', file);
+    formData.append('mark_text', markText || '本内容由人工智能生成/合成');
+    formData.append('position', position || 'bottom_right');
+    formData.append('font_percent', fontSize || 5.0);
+    formData.append('font_color', fontColor || '#FFFFFF');
+    
+    return fetch('/api/visible_mark', {
+        method: 'POST',
+        body: formData
+    }).then(response => response.json());
+}
+
+// 视频可见标识
+function addVisibleMarkToVideo(file, markText, position, duration) {
+    const formData = new FormData();
+    formData.append('modality', 'video'); 
+    formData.append('file', file);
+    formData.append('mark_text', markText || '本内容由人工智能生成/合成');
+    formData.append('position', position || 'bottom_right');
+    formData.append('font_percent', 4.0);
+    formData.append('duration_seconds', duration || 2.0);
+    formData.append('font_color', 'white');
+    
+    return fetch('/api/visible_mark', {
+        method: 'POST',
+        body: formData
+    }).then(response => response.json());
+}
+
+// 音频可见标识
+function addVisibleMarkToAudio(file, markText, position, voicePreset) {
+    const formData = new FormData();
+    formData.append('modality', 'audio');
+    formData.append('file', file);
+    formData.append('mark_text', markText || '本内容由人工智能生成');
+    formData.append('position', position || 'start'); 
+    formData.append('voice_preset', voicePreset || 'v2/zh_speaker_6');
+    
+    return fetch('/api/visible_mark', {
+        method: 'POST',
+        body: formData
+    }).then(response => response.json());
+}
+```
+
+### 配置参数
+
+可见标识功能的参数可通过配置文件控制：
+
+```yaml
+# config/visible_mark_config.yaml
+visible_marking:
+  # 默认标识文案
+  default_text: "本内容由人工智能生成/合成"
+  
+  # 图像标识配置
+  image_config:
+    default_position: "bottom_right"
+    default_font_percent: 5.0
+    default_font_color: "#FFFFFF"
+    supported_formats: [".jpg", ".jpeg", ".png", ".bmp", ".webp"]
+    
+  # 视频标识配置  
+  video_config:
+    default_position: "bottom_right"
+    default_font_percent: 4.0
+    default_duration: 2.0
+    default_font_color: "white"
+    supported_formats: [".mp4", ".avi", ".mov", ".mkv", ".webm"]
+    
+  # 音频标识配置
+  audio_config:
+    default_position: "start"
+    default_voice_preset: "v2/zh_speaker_6"
+    supported_formats: [".wav", ".mp3", ".flac", ".m4a", ".aac"]
+    
+  # 文本标识配置
+  text_config:
+    default_position: "start" 
+    separator: "\n\n"
+```
+
+### 实际应用场景
+
+1. **内容合规标识**：为AI生成的图像、视频、音频内容添加标准合规标识
+2. **版权声明**：在媒体文件中添加版权或来源信息
+3. **品牌标识**：为企业内容添加品牌watermark或logo文字
+4. **法律合规**：满足不同地区对AI生成内容标识的法律要求
+5. **内容溯源**：为内容添加生成时间、模型版本等元信息
+
+### 技术特点总结
+
+| 特性 | 描述 | 优势 |
+|------|------|------|
+| **多模态统一** | 支持文本、图像、音频、视频四种模态 | 一致的API接口，便于集成 |
+| **灵活配置** | 支持位置、样式、时长等多维度配置 | 适应不同应用场景需求 |
+| **高质量输出** | 抗锯齿、阴影效果、格式优化 | 专业级视觉效果 |
+| **浏览器兼容** | 自动格式转码，确保Web播放 | 无缝Web集成体验 |
+| **合规导向** | 内置标准合规文案和位置 | 满足监管要求 |
+| **批量处理** | 支持API批量调用和处理 | 高效的生产环境应用 |

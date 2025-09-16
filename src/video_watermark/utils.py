@@ -306,6 +306,173 @@ class MemoryMonitor:
         return tensor.element_size() * tensor.nelement() / (1024**2)
 
 
+class VideoTranscoder:
+    """视频转码工具类"""
+    
+    @staticmethod
+    def transcode_for_browser(input_path: str, output_path: str = None, 
+                            target_fps: int = 30, target_resolution: str = None,
+                            quality: str = 'medium') -> str:
+        """
+        转码视频为浏览器友好格式 (H.264 + AAC, MP4 容器，faststart)
+        
+        Args:
+            input_path: 输入视频路径
+            output_path: 输出视频路径，如果为None则自动生成
+            target_fps: 目标帧率
+            target_resolution: 目标分辨率，格式如 "720x480" 或 None保持原分辨率
+            quality: 视频质量 ('low', 'medium', 'high')
+            
+        Returns:
+            str: 输出文件路径
+        """
+        if not FFMPEG_AVAILABLE:
+            raise RuntimeError("ffmpeg-python is required for video transcoding. Install with: pip install ffmpeg-python")
+        
+        if not os.path.exists(input_path):
+            raise FileNotFoundError(f"Input video file not found: {input_path}")
+        
+        # 生成输出路径
+        if output_path is None:
+            input_dir = os.path.dirname(input_path)
+            input_name = Path(input_path).stem
+            output_path = os.path.join(input_dir, f"{input_name}_web_compatible.mp4")
+        
+        # 确保输出目录存在
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        # 质量设置
+        quality_settings = {
+            'low': {'crf': '28', 'preset': 'fast'},
+            'medium': {'crf': '23', 'preset': 'medium'},
+            'high': {'crf': '18', 'preset': 'slow'}
+        }
+        
+        settings = quality_settings.get(quality, quality_settings['medium'])
+        
+        try:
+            # 构建 FFmpeg 流
+            input_stream = ffmpeg.input(input_path)
+            
+            # 视频流处理
+            video_args = {
+                'c:v': 'libx264',          # H.264 编码
+                'profile:v': 'main',       # Main profile (兼容性好)
+                'level': '4.0',            # Level 4.0
+                'crf': settings['crf'],    # 恒定质量因子
+                'preset': settings['preset'], # 编码预设
+                'r': target_fps,           # 帧率
+                'pix_fmt': 'yuv420p',      # 像素格式 (兼容性最佳)
+                'movflags': '+faststart'   # Web优化: moov头前置
+            }
+            
+            # 如果指定了分辨率
+            if target_resolution:
+                width, height = map(int, target_resolution.split('x'))
+                video_args['s'] = f'{width}x{height}'
+                video_args['sws_flags'] = 'lanczos'  # 高质量缩放
+            
+            # 音频流处理
+            audio_args = {
+                'c:a': 'aac',             # AAC 编码
+                'b:a': '128k',            # 128kbps 码率
+                'ar': '44100'             # 44.1kHz 采样率
+            }
+            
+            # 执行转码
+            out = ffmpeg.output(input_stream, output_path, **video_args, **audio_args)
+            ffmpeg.run(out, overwrite_output=True, quiet=True)
+            
+            return output_path
+            
+        except ffmpeg.Error as e:
+            error_msg = f"FFmpeg transcoding failed: {e}"
+            if hasattr(e, 'stderr') and e.stderr:
+                error_msg += f"\nFFmpeg stderr: {e.stderr.decode()}"
+            raise RuntimeError(error_msg)
+        except Exception as e:
+            raise RuntimeError(f"Video transcoding failed: {str(e)}")
+    
+    @staticmethod
+    def get_video_codec_info(video_path: str) -> Dict[str, Any]:
+        """
+        获取视频编码信息
+        
+        Args:
+            video_path: 视频文件路径
+            
+        Returns:
+            Dict[str, Any]: 编码信息
+        """
+        if not FFMPEG_AVAILABLE:
+            raise RuntimeError("ffmpeg-python is required for codec info.")
+        
+        try:
+            probe = ffmpeg.probe(video_path)
+            video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
+            audio_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'audio'), None)
+            
+            info = {
+                'video': {
+                    'codec': video_stream.get('codec_name') if video_stream else None,
+                    'profile': video_stream.get('profile') if video_stream else None,
+                    'width': video_stream.get('width') if video_stream else None,
+                    'height': video_stream.get('height') if video_stream else None,
+                    'fps': eval(video_stream.get('r_frame_rate', '0/1')) if video_stream else None
+                },
+                'audio': {
+                    'codec': audio_stream.get('codec_name') if audio_stream else None,
+                    'sample_rate': audio_stream.get('sample_rate') if audio_stream else None,
+                    'channels': audio_stream.get('channels') if audio_stream else None
+                },
+                'duration': float(probe.get('format', {}).get('duration', 0)),
+                'format': probe.get('format', {}).get('format_name'),
+                'size_bytes': int(probe.get('format', {}).get('size', 0))
+            }
+            
+            return info
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to get codec info: {str(e)}")
+    
+    @staticmethod
+    def is_web_compatible(video_path: str) -> bool:
+        """
+        检查视频是否已经是浏览器兼容格式
+        
+        Args:
+            video_path: 视频文件路径
+            
+        Returns:
+            bool: 是否兼容
+        """
+        try:
+            info = VideoTranscoder.get_video_codec_info(video_path)
+            
+            # 检查视频编码
+            video_codec = info.get('video', {}).get('codec', '').lower()
+            video_profile = info.get('video', {}).get('profile', '').lower()
+            
+            # 检查音频编码
+            audio_codec = info.get('audio', {}).get('codec', '').lower()
+            
+            # 检查容器格式
+            format_name = info.get('format', '').lower()
+            
+            # H.264 + AAC + MP4 且 profile 合适
+            is_compatible = (
+                video_codec == 'h264' and
+                video_profile in ['baseline', 'main', 'high'] and
+                audio_codec == 'aac' and
+                'mp4' in format_name
+            )
+            
+            return is_compatible
+            
+        except Exception:
+            return False
+
+
 class FileUtils:
     """文件处理工具类"""
     

@@ -1,0 +1,2 @@
+and natural language generation.
+Natural Language Processing (NLP) is the study of human language from a computational viewpoint. It has been used for decades to assist with many problems in information science and computer science: automatic summaries;

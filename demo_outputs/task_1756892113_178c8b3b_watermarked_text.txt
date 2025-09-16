@@ -1,0 +1,2 @@
+and deep neural networks.
+LSTMs can be thought of as a form of recurrent network that is capable of performing sequence-to-sequence predictions on input sequences such as time series data or word tokens in textual documents. In this

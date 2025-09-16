@@ -12,7 +12,7 @@ from pathlib import Path
 from .model_manager import ModelManager
 from .hunyuan_video_generator import HunyuanVideoGenerator
 from .videoseal_wrapper import VideoSealWrapper
-from .utils import VideoIOUtils, PerformanceTimer, FileUtils, MemoryMonitor
+from .utils import VideoIOUtils, PerformanceTimer, FileUtils, MemoryMonitor, VideoTranscoder
 
 
 class VideoWatermark:
@@ -51,6 +51,59 @@ class VideoWatermark:
         
         self.logger.info(f"VideoWatermark初始化完成，设备: {self.device}")
     
+    def _transcode_for_browser(self, video_path: str) -> str:
+        """
+        将视频转码为浏览器兼容格式
+        
+        Args:
+            video_path: 输入视频路径
+            
+        Returns:
+            str: 转码后的视频路径
+        """
+        self.logger.info(f"开始转码视频为浏览器兼容格式: {video_path}")
+        
+        try:
+            # 检查是否已经兼容
+            if VideoTranscoder.is_web_compatible(video_path):
+                self.logger.info("视频已经是浏览器兼容格式，无需转码")
+                return video_path
+            
+            # 生成转码后的文件路径
+            path = Path(video_path)
+            transcoded_path = path.parent / f"{path.stem}_web_compatible.mp4"
+            transcoded_path = FileUtils.get_unique_filename(str(transcoded_path))
+            
+            # 执行转码
+            with PerformanceTimer("视频转码", self.logger):
+                result_path = VideoTranscoder.transcode_for_browser(
+                    input_path=video_path,
+                    output_path=transcoded_path,
+                    target_fps=15,  # 匹配保存时的帧率
+                    quality='medium'
+                )
+            
+            # 获取转码后文件大小
+            original_size = FileUtils.get_file_size_mb(video_path)
+            transcoded_size = FileUtils.get_file_size_mb(result_path)
+            
+            self.logger.info(f"转码完成: {result_path}")
+            self.logger.info(f"文件大小: {original_size:.1f} MB -> {transcoded_size:.1f} MB")
+            
+            # 可选: 删除原始文件以节省空间
+            try:
+                os.remove(video_path)
+                self.logger.info(f"已删除原始文件: {video_path}")
+            except Exception as e:
+                self.logger.warning(f"删除原始文件失败: {e}")
+            
+            return result_path
+            
+        except Exception as e:
+            self.logger.error(f"视频转码失败: {e}")
+            # 转码失败时返回原始文件
+            return video_path
+    
     def _ensure_model_manager(self) -> ModelManager:
         """确保模型管理器已初始化"""
         if self.model_manager is None:
@@ -85,8 +138,10 @@ class VideoWatermark:
         guidance_scale: float = 6.0,
         seed: Optional[int] = None,
         # VideoSeal参数
-        lowres_attenuation: bool = True
-    ) -> str:
+        lowres_attenuation: bool = True,
+        # 🆕 原始视频保存选项
+        return_original: bool = False
+    ) -> Union[str, Dict[str, str]]:
         """
         文生视频+水印嵌入一体化功能
         
@@ -102,9 +157,11 @@ class VideoWatermark:
             guidance_scale: 引导强度
             seed: 随机种子
             lowres_attenuation: VideoSeal低分辨率衰减
+            return_original: 是否同时返回原始视频路径
             
         Returns:
-            str: 输出视频文件路径
+            str: 输出视频文件路径（当return_original=False时）
+            Dict[str, str]: 包含'original'和'watermarked'键的字典（当return_original=True时）
         """
         self.logger.info("开始文生视频+水印嵌入流程")
         self.logger.info(f"提示词: '{prompt[:100]}{'...' if len(prompt) > 100 else ''}'")
@@ -163,15 +220,47 @@ class VideoWatermark:
             FileUtils.ensure_dir(os.path.dirname(output_path))
             
             # 避免文件名冲突
-            output_path = FileUtils.get_unique_filename(output_path)
+            watermarked_path = FileUtils.get_unique_filename(output_path)
             
-            with PerformanceTimer("视频保存", self.logger):
-                VideoIOUtils.save_video_tensor(watermarked_tensor, output_path, fps=15)
+            # 🆕 如果需要保存原始视频，先保存原始版本
+            original_path = None
+            if return_original:
+                # 生成原始视频文件路径
+                base_name = os.path.splitext(watermarked_path)[0]
+                original_temp_path = f"{base_name}_original_temp.mp4"
+                original_temp_path = FileUtils.get_unique_filename(original_temp_path)
+                
+                # 保存原始视频（临时）
+                with PerformanceTimer("原始视频保存", self.logger):
+                    VideoIOUtils.save_video_tensor(video_tensor, original_temp_path, fps=15)
+                
+                # 转码为浏览器兼容格式
+                original_path = self._transcode_for_browser(original_temp_path)
+                
+                original_size = FileUtils.get_file_size_mb(original_path)
+                self.logger.info(f"原始视频已保存: {original_path} ({original_size:.1f} MB)")
             
-            file_size = FileUtils.get_file_size_mb(output_path)
-            self.logger.info(f"视频已保存: {output_path} ({file_size:.1f} MB)")
+            # 保存水印视频（临时）
+            watermarked_temp_path = f"{os.path.splitext(watermarked_path)[0]}_temp.mp4"
+            watermarked_temp_path = FileUtils.get_unique_filename(watermarked_temp_path)
             
-            return output_path
+            with PerformanceTimer("水印视频保存", self.logger):
+                VideoIOUtils.save_video_tensor(watermarked_tensor, watermarked_temp_path, fps=15)
+            
+            # 转码为浏览器兼容格式
+            final_watermarked_path = self._transcode_for_browser(watermarked_temp_path)
+            
+            watermarked_size = FileUtils.get_file_size_mb(final_watermarked_path)
+            self.logger.info(f"水印视频已保存: {final_watermarked_path} ({watermarked_size:.1f} MB)")
+            
+            # 🆕 根据return_original参数决定返回格式
+            if return_original:
+                return {
+                    'original': original_path,
+                    'watermarked': final_watermarked_path
+                }
+            else:
+                return final_watermarked_path
     
     def embed_watermark(
         self,
@@ -234,15 +323,18 @@ class VideoWatermark:
             FileUtils.ensure_dir(os.path.dirname(output_path))
             
             # 避免文件名冲突
-            output_path = FileUtils.get_unique_filename(output_path)
+            temp_output_path = FileUtils.get_unique_filename(f"{os.path.splitext(output_path)[0]}_temp.mp4")
             
             with PerformanceTimer("视频保存", self.logger):
-                VideoIOUtils.save_video_tensor(watermarked_tensor, output_path, fps=15)
+                VideoIOUtils.save_video_tensor(watermarked_tensor, temp_output_path, fps=15)
             
-            file_size = FileUtils.get_file_size_mb(output_path)
-            self.logger.info(f"带水印视频已保存: {output_path} ({file_size:.1f} MB)")
+            # 转码为浏览器兼容格式
+            final_output_path = self._transcode_for_browser(temp_output_path)
             
-            return output_path
+            file_size = FileUtils.get_file_size_mb(final_output_path)
+            self.logger.info(f"带水印视频已保存: {final_output_path} ({file_size:.1f} MB)")
+            
+            return final_output_path
     
     def extract_watermark(
         self,

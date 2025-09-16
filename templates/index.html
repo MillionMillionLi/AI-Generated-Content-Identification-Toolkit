@@ -70,15 +70,16 @@
         }
 
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
+            width: 100%;
+            margin: 0;
+            padding: 0;
         }
 
         /* Header */
         .header {
             text-align: center;
-            margin-bottom: 3rem;
+            padding: 2rem 0 1rem 0;
+            margin-bottom: 0;
         }
 
         .logo {
@@ -145,11 +146,19 @@
 
         /* Main Layout */
         .main-layout {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 2rem;
-            max-width: 800px;
-            margin: 0 auto;
+            display: flex;
+            width: 100vw;
+            height: calc(100vh - 160px); /* 减去header的高度 */
+            gap: 0;
+            padding: 0;
+            margin: 0;
+        }
+
+        .left-column, .right-column {
+            flex: 1;
+            width: 50vw;
+            padding: 1rem;
+            box-sizing: border-box;
         }
 
         /* Cards */
@@ -160,6 +169,15 @@
             border: 1px solid var(--border-light);
             overflow: hidden;
             backdrop-filter: blur(10px);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-content {
+            padding: 1.5rem;
+            flex: 1;
+            overflow-y: auto;
         }
 
         .card-header {
@@ -178,10 +196,6 @@
         .card-description {
             color: var(--text-secondary);
             font-size: 0.875rem;
-        }
-
-        .card-content {
-            padding: 1.5rem;
         }
 
         /* Form Elements */
@@ -656,12 +670,17 @@
         /* Responsive Design */
         @media (max-width: 768px) {
             .container {
-                padding: 1rem;
+                padding: 0;
             }
 
             .main-layout {
-                grid-template-columns: 1fr;
-                gap: 1.5rem;
+                flex-direction: column;
+                height: auto;
+            }
+
+            .left-column, .right-column {
+                width: 100%;
+                padding: 0.5rem;
             }
 
             .modality-grid {
@@ -698,8 +717,10 @@
             <p class="subtitle">支持文本、图像、音频、视频四种模态的智能水印嵌入与提取</p>
         </header>
 
-        <!-- Main Layout -->
+        <!-- Main Layout - Double Column -->
         <div class="main-layout">
+            <!-- Left Column - Processing Settings -->
+            <div class="left-column">
             <!-- Left Panel - Input -->
             <div class="card">
                 <div class="card-header">
@@ -749,6 +770,13 @@
                                 <span class="radio-content">
                                     <span class="radio-icon">🔍</span>
                                     <span class="radio-text">提取水印</span>
+                                </span>
+                            </label>
+                            <label class="radio-card" id="visible-mode-card">
+                                <input type="radio" name="operation" value="visible_mark" style="display: none;">
+                                <span class="radio-content">
+                                    <span class="radio-icon">🏷️</span>
+                                    <span class="radio-text">显示标识</span>
                                 </span>
                             </label>
                         </div>
@@ -848,22 +876,98 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Visible Mark Mode Inputs -->
+                        <div id="visible-inputs" style="display: none;">
+                            <!-- 输入来源：文本或上传（文本允许直接粘贴；其他三类需上传） -->
+                            <div class="form-group" id="visible-text-input" style="display: none;">
+                                <label class="form-label" for="visible-textarea">文本内容</label>
+                                <textarea id="visible-textarea" class="form-textarea" placeholder="在此粘贴要添加显示标识的文本..." style="min-height: 120px; resize: vertical; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 0.875rem; line-height: 1.6; width: 100%; box-sizing: border-box;"></textarea>
+                            </div>
+
+                            <div class="form-group" id="visible-upload-input" style="display: block;">
+                                <label class="form-label">上传文件添加显示标识</label>
+                                <div class="file-upload-area" id="visible-file-upload-area">
+                                    <div class="upload-placeholder">
+                                        <div class="upload-icon">📁</div>
+                                        <div class="upload-text">
+                                            <p>点击或拖拽文件到此处</p>
+                                            <p class="upload-hint" id="visible-upload-hint">支持图像、音频、视频文件</p>
+                                        </div>
+                                    </div>
+                                    <input type="file" id="visible-file-input" style="display: none;" accept="*/*">
+                                </div>
+                                <div class="file-info" id="visible-file-info" style="display: none;">
+                                    <div class="file-details">
+                                        <span class="file-name" id="visible-file-name">-</span>
+                                        <span class="file-size" id="visible-file-size">-</span>
+                                    </div>
+                                    <button class="remove-file" id="visible-remove-file" type="button">×</button>
+                                </div>
+                            </div>
+
+                            <!-- 通用参数 -->
+                            <div class="form-group">
+                                <label class="form-label" for="mark-text">提示文案（将自动校验含"人工智能/AI"与"生成/合成"）</label>
+                                <input type="text" id="mark-text" class="form-input" value="本内容由人工智能生成/合成">
+                            </div>
+
+                            <!-- 模态特有参数（根据模态切换可见性） -->
+                            <div class="form-group" id="vm-text-opts" style="display: none;">
+                                <label class="form-label">位置</label>
+                                <select id="vm-text-pos" class="form-select">
+                                    <option value="start">起始</option>
+                                    <option value="middle">中间</option>
+                                    <option value="end">末尾</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" id="vm-image-video-opts" style="display: none;">
+                                <label class="form-label">图像/视频标识参数</label>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem;">
+                                    <select id="vm-iv-pos" class="form-select">
+                                        <option value="bottom_right">右下</option>
+                                        <option value="bottom_left">左下</option>
+                                        <option value="top_right">右上</option>
+                                        <option value="top_left">左上</option>
+                                    </select>
+                                    <input type="number" id="vm-font-percent" class="form-input" min="5" max="20" value="5" placeholder="字号%（≥5）" title="字体大小占最短边的百分比">
+                                    <input type="color" id="vm-font-color" class="form-input" value="#ffffff" title="字体颜色">
+                                    <input type="number" id="vm-video-duration" class="form-input" min="2" max="10" value="2" placeholder="显示秒数(≥2)" title="视频显示秒数(≥2)">
+                                </div>
+                            </div>
+
+                            <div class="form-group" id="vm-audio-opts" style="display: none;">
+                                <label class="form-label">音频标识参数</label>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem;">
+                                    <select id="vm-audio-pos" class="form-select">
+                                        <option value="start">起始</option>
+                                        <option value="middle">中间</option>
+                                        <option value="end">末尾</option>
+                                    </select>
+                                    <input type="text" id="vm-voice-preset" class="form-input" value="v2/zh_speaker_6" placeholder="语音预设">
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Action Buttons -->
                     <div class="button-group">
-                        <button class="btn btn-primary" id="confirm-btn">
+                        <button type="button" class="btn btn-primary" id="confirm-btn">
                             <span id="confirm-icon">✨</span>
                             <span id="confirm-text">确认</span>
                         </button>
-                        <button class="btn btn-secondary" id="clear-btn">
+                        <button type="button" class="btn btn-secondary" id="clear-btn">
                             <span>🔄</span>
                             <span>重置</span>
                         </button>
                     </div>
+                    </div>
                 </div>
             </div>
 
+            <!-- Right Column - Processing Results -->
+            <div class="right-column">
             <!-- Right Panel - Results -->
             <div class="card">
                 <div class="card-header">
@@ -880,10 +984,8 @@
                         </div>
                     </div>
 
-                    <!-- Result Content -->
-                    <div class="result-content" id="result-content">
-                        <!-- Progress Bar -->
-                        <div class="progress-container" id="progress-container">
+                    <!-- Processing Progress -->
+                    <div class="progress-container" id="progress-container" style="display: none;">
                             <div class="progress-header">
                                 <span class="progress-text" id="progress-text">初始化...</span>
                                 <span class="progress-percent" id="progress-percent">0%</span>
@@ -893,16 +995,120 @@
                             </div>
                         </div>
 
-                        <!-- Media Preview -->
-                        <div class="media-preview" id="media-preview" style="display: none;">
-                            <div style="color: #94a3b8;">预览内容将在这里显示</div>
+                    <!-- AI Generated Content Results - Image -->
+                    <div class="result-container image-result ai-generated" id="ai-generated-image-result" style="display: none;">
+                        <div class="result-comparison" style="display: flex; gap: 1rem;">
+                            <div class="result-item" style="flex: 1;">
+                                <h3 style="margin-bottom: 1rem; text-align: center; color: var(--text-primary);">AI生成图像</h3>
+                                <img id="ai-generated-image" src="" alt="AI生成的图像" style="width: 100%; max-width: 300px; height: auto; border-radius: 8px; display: block; margin: 0 auto;">
+                            </div>
+                            <div class="result-item" style="flex: 1;">
+                                <h3 style="margin-bottom: 1rem; text-align: center; color: var(--text-primary);">添加水印后</h3>
+                                <img id="watermarked-image-ai" src="" alt="添加水印后的图像" style="width: 100%; max-width: 300px; height: auto; border-radius: 8px; display: block; margin: 0 auto;">
+                            </div>
+                        </div>
                         </div>
 
-                        <!-- Result Text Display -->
-                        <div class="result-text" id="result-text"></div>
+                    <!-- AI Generated Content Results - Video -->
+                    <div class="result-container video-result ai-generated" id="ai-generated-video-result" style="display: none;">
+                        <div class="result-comparison" style="display: flex; gap: 1rem;">
+                            <div class="result-item" style="flex: 1;">
+                                <h3 style="margin-bottom: 1rem; text-align: center; color: var(--text-primary);">AI生成视频</h3>
+                                <video id="ai-generated-video" controls style="width: 100%; max-width: 300px; height: auto; border-radius: 8px; display: block; margin: 0 auto;"></video>
+                            </div>
+                            <div class="result-item" style="flex: 1;">
+                                <h3 style="margin-bottom: 1rem; text-align: center; color: var(--text-primary);">添加水印后</h3>
+                                <video id="watermarked-video-ai" controls style="width: 100%; max-width: 300px; height: auto; border-radius: 8px; display: block; margin: 0 auto;"></video>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Generated Content Results - Audio -->
+                    <div class="result-container audio-result ai-generated" id="ai-generated-audio-result" style="display: none;">
+                        <div class="result-comparison" style="display: flex; gap: 1rem;">
+                            <div class="result-item" style="flex: 1;">
+                                <h3 style="margin-bottom: 1rem; text-align: center; color: var(--text-primary);">AI生成音频</h3>
+                                <audio id="ai-generated-audio" src="" controls style="width: 100%;"></audio>
+                            </div>
+                            <div class="result-item" style="flex: 1;">
+                                <h3 style="margin-bottom: 1rem; text-align: center; color: var(--text-primary);">添加水印后</h3>
+                                <audio id="watermarked-audio-ai" src="" controls style="width: 100%;"></audio>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Uploaded File Results - Image -->
+                    <div class="result-container image-result uploaded" id="uploaded-image-result" style="display: none;">
+                        <div class="result-comparison" style="display: flex; gap: 1rem;">
+                            <div class="result-item" style="flex: 1;">
+                                <h3 style="margin-bottom: 1rem; text-align: center; color: var(--text-primary);">原始图像</h3>
+                                <img id="original-image" src="" alt="用户上传的图像" style="width: 100%; max-width: 300px; height: auto; border-radius: 8px; display: block; margin: 0 auto;">
+                            </div>
+                            <div class="result-item" style="flex: 1;">
+                                <h3 style="margin-bottom: 1rem; text-align: center; color: var(--text-primary);">添加水印后</h3>
+                                <img id="watermarked-image-uploaded" src="" alt="添加水印后的图像" style="width: 100%; max-width: 300px; height: auto; border-radius: 8px; display: block; margin: 0 auto;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Uploaded File Results - Video -->
+                    <div class="result-container video-result uploaded" id="uploaded-video-result" style="display: none;">
+                        <div class="result-comparison" style="display: flex; gap: 1rem;">
+                            <div class="result-item" style="flex: 1;">
+                                <h3 style="margin-bottom: 1rem; text-align: center; color: var(--text-primary);">原始视频</h3>
+                                <video id="original-video" controls style="width: 100%; max-width: 300px; height: auto; border-radius: 8px; display: block; margin: 0 auto;"></video>
+                            </div>
+                            <div class="result-item" style="flex: 1;">
+                                <h3 style="margin-bottom: 1rem; text-align: center; color: var(--text-primary);">添加水印后</h3>
+                                <video id="watermarked-video-uploaded" controls style="width: 100%; max-width: 300px; height: auto; border-radius: 8px; display: block; margin: 0 auto;"></video>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Uploaded File Results - Audio -->
+                    <div class="result-container audio-result uploaded" id="uploaded-audio-result" style="display: none;">
+                        <div class="result-comparison" style="display: flex; gap: 1rem;">
+                            <div class="result-item" style="flex: 1;">
+                                <h3 style="margin-bottom: 1rem; text-align: center; color: var(--text-primary);">原始音频</h3>
+                                <audio id="original-audio" src="" controls style="width: 100%;"></audio>
+                            </div>
+                            <div class="result-item" style="flex: 1;">
+                                <h3 style="margin-bottom: 1rem; text-align: center; color: var(--text-primary);">添加水印后</h3>
+                                <audio id="watermarked-audio-uploaded" src="" controls style="width: 100%;"></audio>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Text Results -->
+                    <div class="result-container text-result" id="text-result" style="display: none;">
+                        <div class="text-result-content">
+                            <h3 style="margin-bottom: 1rem; text-align: center; color: var(--text-primary);">生成的带水印文本</h3>
+                            <div class="result-text" id="result-text" style="background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 0.875rem; line-height: 1.6; white-space: pre-wrap; max-height: 20rem; overflow-y: auto; min-height: 8rem;"></div>
+                            <div class="text-info-panel" style="margin-top: 1rem; background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem;">
+                                <div class="info-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem;">
+                                    <div class="info-item">
+                                        <span class="info-label" style="font-size: 0.75rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">文本长度</span>
+                                        <span class="info-value" id="text-length" style="font-size: 0.875rem; font-weight: 600; color: var(--text-primary);">-</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label" style="font-size: 0.75rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">字符数</span>
+                                        <span class="info-value" id="text-chars" style="font-size: 0.875rem; font-weight: 600; color: var(--text-primary);">-</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label" style="font-size: 0.75rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">嵌入消息</span>
+                                        <span class="info-value" id="text-watermark-msg" style="font-size: 0.875rem; font-weight: 600; color: var(--primary);">-</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label" style="font-size: 0.75rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">算法</span>
+                                        <span class="info-value" style="font-size: 0.875rem; font-weight: 600; color: var(--text-primary);">CredID</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                         <!-- Result Info -->
-                        <div class="result-info" id="result-info">
+                    <div class="result-info" id="result-info" style="display: none; margin-top: 1.5rem;">
                             <div class="info-grid">
                                 <div class="info-item">
                                     <span class="info-label">处理状态</span>
@@ -936,11 +1142,11 @@
 
                         <!-- Result Actions -->
                         <div class="button-group" id="result-actions" style="display: none; margin-top: 1.5rem;">
-                            <button class="btn btn-primary" id="download-btn">
+                        <button type="button" class="btn btn-primary" id="download-btn">
                                 <span>💾</span>
                                 <span>下载结果</span>
                             </button>
-                            <button class="btn btn-secondary" id="copy-btn">
+                        <button type="button" class="btn btn-secondary" id="copy-btn">
                                 <span>📋</span>
                                 <span>复制内容</span>
                             </button>
@@ -962,6 +1168,7 @@
         let isProcessing = false;
         let uploadedFile = null;
         let embedUploadedFile = null; // 用于embed模式的上传文件
+        let visibleUploadedFile = null; // 用于显示标识模式的上传文件
         let currentTaskId = null;
 
         // 模态配置
@@ -1012,6 +1219,7 @@
             setupEmbedInputModeSelector();
             setupFileUpload();
             setupEmbedFileUpload();
+            setupVisibleFileUpload();
             setupButtons();
             
             // 更新界面状态
@@ -1082,6 +1290,14 @@
                         updateFileUploadHint(modality);
                         updateEmbedFileUploadHint(modality);
                         updateEmbedInputModeVisibility(modality);
+                        // 如果是显示标识模式，更新对应的选项可见性
+                        if (currentOperation === 'visible_mark') {
+                            updateVisibleMarkOptionsVisibility(modality);
+                            // 更新输入控件显示
+                            const isText = (modality === 'text');
+                            document.getElementById('visible-text-input').style.display = isText ? 'block' : 'none';
+                            document.getElementById('visible-upload-input').style.display = !isText ? 'block' : 'none';
+                        }
                         resetResults();
                     }
                 });
@@ -1170,21 +1386,39 @@
                 document.querySelector('input[name="embed-input-mode"][value="upload"]').checked = true;
                 document.querySelector('input[name="embed-input-mode"][value="generate"]').checked = false;
             }
+
+            // 切换输入模式时重置右侧结果区域，避免残留上一次结果
+            resetResults();
         }
 
         // 切换输入模式
         function toggleInputMode(operation) {
             const embedInputs = document.getElementById('embed-inputs');
             const extractInputs = document.getElementById('extract-inputs');
+            const visibleInputs = document.getElementById('visible-inputs');
             
             if (operation === 'embed') {
                 embedInputs.style.display = 'block';
                 extractInputs.style.display = 'none';
+                visibleInputs.style.display = 'none';
                 // 更新embed输入模式的可见性
                 updateEmbedInputModeVisibility(currentModality);
+            } else if (operation === 'visible_mark') {
+                embedInputs.style.display = 'none';
+                extractInputs.style.display = 'none';
+                visibleInputs.style.display = 'block';
+                // visible_mark：文本允许粘贴，其他模态需上传
+                const isText = (currentModality === 'text');
+                document.getElementById('visible-text-input').style.display = isText ? 'block' : 'none';
+                document.getElementById('visible-upload-input').style.display = !isText ? 'block' : 'none';
+                // 模态特有参数显隐
+                updateVisibleMarkOptionsVisibility(currentModality);
+                // 隐藏embed输入模式选择
+                document.getElementById('embed-input-mode').style.display = 'none';
             } else {
                 embedInputs.style.display = 'none';
                 extractInputs.style.display = 'block';
+                visibleInputs.style.display = 'none';
                 // extract模式下隐藏embed输入模式选择
                 document.getElementById('embed-input-mode').style.display = 'none';
             }
@@ -1318,6 +1552,71 @@
             document.getElementById('embed-file-input').value = '';
         }
 
+        // 设置显示标识文件上传
+        function setupVisibleFileUpload() {
+            const visibleFileUploadArea = document.getElementById('visible-file-upload-area');
+            const visibleFileInput = document.getElementById('visible-file-input');
+            const visibleFileInfo = document.getElementById('visible-file-info');
+            const visibleRemoveFileBtn = document.getElementById('visible-remove-file');
+            
+            visibleFileUploadArea.addEventListener('click', () => {
+                visibleFileInput.click();
+            });
+            
+            visibleFileInput.addEventListener('change', handleVisibleFileSelect);
+            
+            visibleFileUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                visibleFileUploadArea.classList.add('dragover');
+            });
+            
+            visibleFileUploadArea.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                visibleFileUploadArea.classList.remove('dragover');
+            });
+            
+            visibleFileUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                visibleFileUploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleVisibleFile(files[0]);
+                }
+            });
+            
+            visibleRemoveFileBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeVisibleFile();
+            });
+        }
+
+        // 处理显示标识文件选择
+        function handleVisibleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleVisibleFile(file);
+            }
+        }
+
+        // 处理显示标识文件
+        function handleVisibleFile(file) {
+            console.log('选择显示标识文件:', file.name);
+            visibleUploadedFile = file;
+            
+            document.getElementById('visible-file-upload-area').style.display = 'none';
+            document.getElementById('visible-file-info').style.display = 'flex';
+            document.getElementById('visible-file-name').textContent = file.name;
+            document.getElementById('visible-file-size').textContent = formatFileSize(file.size);
+        }
+
+        // 移除显示标识文件
+        function removeVisibleFile() {
+            visibleUploadedFile = null;
+            document.getElementById('visible-file-upload-area').style.display = 'block';
+            document.getElementById('visible-file-info').style.display = 'none';
+            document.getElementById('visible-file-input').value = '';
+        }
+
         // 格式化文件大小
         function formatFileSize(bytes) {
             if (bytes === 0) return '0 Bytes';
@@ -1385,12 +1684,33 @@
             }
         }
 
+        // 更新显示标识模态选项可见性
+        function updateVisibleMarkOptionsVisibility(modality) {
+            document.getElementById('vm-text-opts').style.display = (modality === 'text') ? 'block' : 'none';
+            document.getElementById('vm-image-video-opts').style.display = (modality === 'image' || modality === 'video') ? 'block' : 'none';
+            document.getElementById('vm-audio-opts').style.display = (modality === 'audio') ? 'block' : 'none';
+            
+            // 更新上传提示文字
+            const hintElement = document.getElementById('visible-upload-hint');
+            if (hintElement) {
+                if (modality === 'image') {
+                    hintElement.textContent = '支持 .jpg/.png/.webp 等图像文件';
+                } else if (modality === 'audio') {
+                    hintElement.textContent = '支持 .mp3/.wav/.flac 等音频文件';
+                } else if (modality === 'video') {
+                    hintElement.textContent = '支持 .mp4/.mov/.mkv 等视频文件';
+                }
+            }
+        }
+
         // 更新确认按钮
         function updateConfirmButton(operation) {
             const confirmBtn = document.getElementById('confirm-btn');
             
             if (operation === 'embed') {
                 confirmBtn.innerHTML = '<span id="confirm-icon">✨</span><span id="confirm-text">嵌入水印</span>';
+            } else if (operation === 'visible_mark') {
+                confirmBtn.innerHTML = '<span id="confirm-icon">🏷️</span><span id="confirm-text">显示标识</span>';
             } else {
                 confirmBtn.innerHTML = '<span id="confirm-icon">🔍</span><span id="confirm-text">提取水印</span>';
             }
@@ -1421,11 +1741,21 @@
                     downloadResult(currentTaskId);
                 }
             });
+            
+            document.getElementById('copy-btn').addEventListener('click', () => {
+                copyResultText();
+            });
         }
 
         // 开始处理
         async function startProcessing(operation) {
-            if (isProcessing) return;
+            console.log('🎯 开始处理操作:', operation);
+            console.log('🔄 当前处理状态:', isProcessing);
+            
+            if (isProcessing) {
+                console.log('⚠️ 已在处理中，跳过');
+                return;
+            }
             
             // 验证输入
             if (operation === 'extract' && !uploadedFile) {
@@ -1449,6 +1779,20 @@
                 }
             }
             
+            if (operation === 'visible_mark') {
+                if (currentModality === 'text') {
+                    if (!document.getElementById('visible-textarea').value.trim()) {
+                        showAlert('请输入文本内容', 'error');
+                        return;
+                    }
+                } else {
+                    if (!visibleUploadedFile) {
+                        showAlert('请上传文件添加显示标识', 'error');
+                        return;
+                    }
+                }
+            }
+            
             isProcessing = true;
             
             // 禁用按钮并显示加载状态
@@ -1457,6 +1801,8 @@
             
             if (operation === 'embed') {
                 confirmBtn.innerHTML = '<span class="loading-spinner"></span><span>嵌入中...</span>';
+            } else if (operation === 'visible_mark') {
+                confirmBtn.innerHTML = '<span class="loading-spinner"></span><span>添加标识中...</span>';
             } else {
                 confirmBtn.innerHTML = '<span class="loading-spinner"></span><span>检测中...</span>';
             }
@@ -1465,18 +1811,23 @@
             showResults();
             
             try {
+                console.log('⚡ 执行操作:', operation);
                 let result;
                 if (operation === 'embed') {
                     result = await performEmbed();
+                } else if (operation === 'visible_mark') {
+                    result = await performVisibleMark();
                 } else {
                     result = await performExtract();
                 }
+                
+                console.log('🎉 操作成功，结果:', result);
                 
                 // 处理成功
                 handleProcessingSuccess(result, operation);
                 
             } catch (error) {
-                console.error('处理失败:', error);
+                console.error('❌ 处理失败:', error);
                 handleProcessingError(error);
             } finally {
                 // 恢复按钮状态
@@ -1497,14 +1848,22 @@
 
         // 执行水印嵌入
         async function performEmbed() {
+            console.log('🚀 开始执行水印嵌入');
+            console.log('当前模态:', currentModality);
+            console.log('当前嵌入输入模式:', currentEmbedInputMode);
+            
             const formData = new FormData();
             formData.append('modality', currentModality);
             formData.append('message', getCurrentWatermarkMessage());
             
+            console.log('水印消息:', getCurrentWatermarkMessage());
+            
             // 根据输入模式添加不同的参数
             if (currentEmbedInputMode === 'generate') {
                 // AI生成模式
-                formData.append('prompt', document.getElementById('prompt-input').value);
+                const promptValue = document.getElementById('prompt-input').value;
+                formData.append('prompt', promptValue);
+                console.log('提示词:', promptValue);
                 
                 // 添加模态特定参数
                 if (currentModality === 'image') {
@@ -1526,17 +1885,25 @@
                 }
             }
             
+            console.log('📡 发送请求到:', `${API_BASE}/api/embed`);
+            console.log('📦 请求数据:', Array.from(formData.entries()));
+            
             const response = await fetch(`${API_BASE}/api/embed`, {
                 method: 'POST',
                 body: formData
             });
             
+            console.log('📨 服务器响应状态:', response.status);
+            
             if (!response.ok) {
                 const errorData = await response.json();
+                console.error('❌ 服务器错误:', errorData);
                 throw new Error(errorData.error || '嵌入失败');
             }
             
-            return await response.json();
+            const result = await response.json();
+            console.log('✅ 服务器响应:', result);
+            return result;
         }
 
         // 执行水印提取
@@ -1555,6 +1922,55 @@
                 throw new Error(errorData.error || '提取失败');
             }
             
+            return await response.json();
+        }
+
+        // 执行显示标识
+        async function performVisibleMark() {
+            console.log('🚀 开始执行显示标识');
+            console.log('当前模态:', currentModality);
+            
+            const formData = new FormData();
+            formData.append('modality', currentModality);
+            formData.append('mark_text', document.getElementById('mark-text').value);
+
+            if (currentModality === 'text') {
+                const textContent = document.getElementById('visible-textarea').value;
+                if (!textContent.trim()) {
+                    throw new Error('请输入文本内容');
+                }
+                formData.append('text', textContent);
+                formData.append('position', document.getElementById('vm-text-pos').value);
+            } else if (currentModality === 'image' || currentModality === 'video') {
+                if (!visibleUploadedFile) {
+                    throw new Error('请上传文件');
+                }
+                formData.append('file', visibleUploadedFile);
+                formData.append('position', document.getElementById('vm-iv-pos').value);
+                formData.append('font_percent', Number(document.getElementById('vm-font-percent').value || 5));
+                formData.append('font_color', document.getElementById('vm-font-color').value);
+                if (currentModality === 'video') {
+                    formData.append('duration_seconds', Number(document.getElementById('vm-video-duration').value || 2));
+                }
+            } else if (currentModality === 'audio') {
+                if (!visibleUploadedFile) {
+                    throw new Error('请上传文件');
+                }
+                formData.append('file', visibleUploadedFile);
+                formData.append('position', document.getElementById('vm-audio-pos').value);
+                formData.append('voice_preset', document.getElementById('vm-voice-preset').value);
+            }
+
+            const response = await fetch(`${API_BASE}/api/visible_mark`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || '显示标识失败');
+            }
+
             return await response.json();
         }
 
@@ -1607,40 +2023,336 @@
             showAlert(`处理失败: ${error.message}`, 'error');
         }
 
-        // 显示模态特定结果
-        function showModalitySpecificResult(result, operation) {
+        // 🆕 隐藏所有结果模板
+        function hideAllResultTemplates() {
+            const templates = [
+                'ai-generated-image-result', 'ai-generated-video-result', 'ai-generated-audio-result',
+                'uploaded-image-result', 'uploaded-video-result', 'uploaded-audio-result',
+                'text-result', 'result-placeholder'
+            ];
+            
+            templates.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.style.display = 'none';
+                }
+            });
+        }
+        
+        // 🆕 显示结果模板 - 根据模态和输入方式动态切换
+        function showResultTemplate(modality, inputMode, isCompleted = false) {
+            console.log(`显示结果模板: ${modality}, 输入模式: ${inputMode}, 完成: ${isCompleted}`);
+            
+            // 隐藏所有模板
+            hideAllResultTemplates();
+            
+            if (!isCompleted) {
+                // 处理中状态 - 显示进度条
+                document.getElementById('progress-container').style.display = 'block';
+                return;
+            }
+            
+            // 处理完成 - 显示对应的结果模板
+            let templateId = '';
+            
+            if (modality === 'text') {
+                templateId = 'text-result';
+            } else {
+                // 图像、音频、视频模态
+                if (inputMode === 'generate') {
+                    templateId = `ai-generated-${modality}-result`;
+                } else {
+                    templateId = `uploaded-${modality}-result`;
+                }
+            }
+            
+            const template = document.getElementById(templateId);
+            if (template) {
+                template.style.display = 'block';
+                console.log(`已显示模板: ${templateId}`);
+            } else {
+                console.error(`模板不存在: ${templateId}`);
+            }
+        }
+        
+        // 简单的媒体重试加载
+        function loadMediaWithRetry(el, url, retries = 5, delay = 800) {
+            el.style.display = 'block';
+            el.src = url;
+            if (el.tagName === 'VIDEO' || el.tagName === 'AUDIO') {
+                try { el.load(); } catch(e) {}
+            }
+            el.onerror = () => {
+                if (retries > 0) {
+                    setTimeout(() => loadMediaWithRetry(el, url, retries - 1, delay), delay);
+                } else {
+                    console.warn('媒体加载失败(已重试):', url);
+                    // 最终失败也不要隐藏容器，保留标题与另一侧媒体
+                }
+            };
+            el.onloadeddata = () => {
+                el.style.display = 'block';
+            };
+        }
+
+        // 🆕 更新媒体源 - 设置图像/音频/视频的src属性
+        function updateMediaSources(taskId, modality, inputMode, taskData = null) {
+            console.log(`更新媒体源: ${taskId}, ${modality}, ${inputMode}`);
+            
+            if (modality === 'text') {
+                return; // 文本不需要媒体源
+            }
+            
+            const originalUrl = `/api/files/${taskId}/original`;
+            const watermarkedUrl = `/api/files/${taskId}/watermarked`;
+            
+            let originalElementId, watermarkedElementId;
+            
+            if (inputMode === 'generate') {
+                originalElementId = `ai-generated-${modality}`;
+                watermarkedElementId = `watermarked-${modality}-ai`;
+            } else {
+                originalElementId = `original-${modality}`;
+                watermarkedElementId = `watermarked-${modality}-uploaded`;
+            }
+            
+            // 检查是否有原始文件
+            const hasOriginalFile = taskData && taskData.files && taskData.files.original;
+            
+            // 设置原始文件源
+            const originalElement = document.getElementById(originalElementId);
+            if (originalElement) {
+                if (hasOriginalFile) {
+                    loadMediaWithRetry(originalElement, originalUrl);
+                    console.log(`设置原始文件源: ${originalElementId} = ${originalUrl}`);
+                } else {
+                    // 没有原始文件，仅隐藏原始这一列，不影响水印列
+                    originalElement.style.display = 'none';
+                    const container = originalElement.closest('.result-item');
+                    if (container) container.style.display = 'none';
+                }
+            }
+            
+            // 设置水印文件源
+            const watermarkedElement = document.getElementById(watermarkedElementId);
+            if (watermarkedElement) {
+                loadMediaWithRetry(watermarkedElement, watermarkedUrl);
+                console.log(`设置水印文件源: ${watermarkedElementId} = ${watermarkedUrl}`);
+                
+                // 如果没有原始文件，调整水印文件容器布局
+                if (!hasOriginalFile) {
+                    const watermarkedContainer = watermarkedElement.closest('.result-item');
+                    if (watermarkedContainer) {
+                        watermarkedContainer.style.width = '100%';
+                        watermarkedContainer.style.maxWidth = '100%';
+                        console.log('调整水印文件容器为全宽显示');
+                    }
+                }
+            }
+        }
+        
+        // 复制结果文本
+        async function copyResultText() {
             const resultText = document.getElementById('result-text');
-            const mediaPreview = document.getElementById('media-preview');
+            if (!resultText || !resultText.textContent.trim()) {
+                showAlert('没有可复制的文本内容', 'warning');
+                return;
+            }
             
-            // 重置显示
-            resultText.style.display = 'none';
-            mediaPreview.style.display = 'none';
+            try {
+                await navigator.clipboard.writeText(resultText.textContent);
+                showAlert('文本内容已复制到剪贴板', 'success');
+            } catch (error) {
+                // 如果现代API失败，尝试传统方法
+                try {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = resultText.textContent;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    showAlert('文本内容已复制到剪贴板', 'success');
+                } catch (fallbackError) {
+                    console.error('复制失败:', fallbackError);
+                    showAlert('复制失败，请手动选择并复制文本', 'error');
+                }
+            }
+        }
+        
+        // 更新文本统计信息
+        function updateTextStatistics(textContent, watermarkMessage) {
+            // 更新显示
+            const textLengthEl = document.getElementById('text-length');
+            const textCharsEl = document.getElementById('text-chars');
+            const textWatermarkMsgEl = document.getElementById('text-watermark-msg');
             
-            switch (currentModality) {
-                case 'text':
-                    if (operation === 'embed' && result.generated_text) {
-                        resultText.textContent = `生成的带水印文本：\n\n${result.generated_text}`;
+            if (textContent && textContent.trim()) {
+                // 计算文本统计
+                const wordCount = textContent.trim().split(/\s+/).length;
+                const charCount = textContent.length;
+                
+                if (textLengthEl) textLengthEl.textContent = `${wordCount} 词`;
+                if (textCharsEl) textCharsEl.textContent = `${charCount} 字符`;
+                
+                console.log(`文本统计更新: ${wordCount}词, ${charCount}字符`);
+            } else {
+                // 没有文本内容时（如提取模式）
+                if (textLengthEl) textLengthEl.textContent = '-';
+                if (textCharsEl) textCharsEl.textContent = '-';
+            }
+            
+            // 更新水印消息
+            if (textWatermarkMsgEl) {
+                textWatermarkMsgEl.textContent = watermarkMessage || '无';
+            }
+        }
+        
+        // 🆕 轮询任务状态并更新显示
+        async function pollTaskStatus(taskId) {
+            try {
+                const response = await fetch(`${API_BASE}/api/task/${taskId}`);
+                if (!response.ok) {
+                    throw new Error(`任务状态查询失败: ${response.status}`);
+                }
+                
+                const taskData = await response.json();
+                console.log('任务状态:', taskData);
+                
+                if (taskData.status === 'completed') {
+                    // 显示对应的结果模板
+                    showResultTemplate(taskData.modality, taskData.input_mode, true);
+                    
+                    // 更新媒体文件源
+                    if (taskData.files) {
+                        updateMediaSources(taskId, taskData.modality, taskData.input_mode, taskData);
+                    }
+                    
+                    // 更新文本结果 (如果是文本模态)
+                    if (taskData.modality === 'text') {
+                        const resultText = document.getElementById('result-text');
+                        if (resultText && currentOperation === 'embed') {
+                            // 显示生成的带水印文本内容
+                            if (taskData.generated_text || taskData.watermarked_text) {
+                                const textContent = taskData.generated_text || taskData.watermarked_text || taskData.result;
+                                resultText.textContent = textContent;
+                                
+                                // 更新文本统计信息
+                                updateTextStatistics(textContent, taskData.message || taskData.watermark_message);
+                                
+                                // 显示操作按钮
+                                document.getElementById('result-actions').style.display = 'flex';
+                            } else {
+                                resultText.textContent = '文本水印嵌入完成。生成内容请通过下载查看。';
+                                // 也显示操作按钮，用户可以下载文件
+                                document.getElementById('result-actions').style.display = 'flex';
+                            }
+                            resultText.style.display = 'block';
+                        }
+                    }
+                    
+                    return true; // 任务完成
+                } else if (taskData.status === 'error') {
+                    console.error('任务失败:', taskData.error);
+                    return true; // 任务结束
+                }
+                
+                return false; // 任务仍在进行
+            } catch (error) {
+                console.error('轮询任务状态失败:', error);
+                return true; // 停止轮询
+            }
+        }
+        
+        // 显示模态特定结果 - 保持兼容性，但使用新的模板系统
+        function showModalitySpecificResult(result, operation) {
+            // 启动任务状态轮询以获取更详细信息
+            if (result.task_id && operation === 'embed') {
+                // 开始轮询任务状态
+                const pollInterval = setInterval(async () => {
+                    const completed = await pollTaskStatus(result.task_id);
+                    if (completed) {
+                        clearInterval(pollInterval);
+                    }
+                }, 1000); // 每秒轮询一次
+                
+                // 5秒后停止轮询 (防止无限轮询)
+                setTimeout(() => {
+                    clearInterval(pollInterval);
+                }, 5000);
+            } else {
+                // 提取操作或其他情况，使用原有逻辑
+                const resultText = document.getElementById('result-text');
+                
+                if (operation === 'extract') {
+                    if (currentModality === 'text') {
+                        // 文本提取结果
+                        resultText.textContent = `水印检测结果：\n\n检测状态: ${result.detected ? '✅ 检测到水印' : '❌ 未检测到水印'}\n水印消息: ${result.message || '无'}\n置信度: ${result.confidence ? (result.confidence * 100).toFixed(1) + '%' : '0%'}`;
                         resultText.style.display = 'block';
-                    } else if (operation === 'extract') {
+                        
+                        // 更新文本信息面板 (提取模式)
+                        updateTextStatistics('', result.message || '');
+                        const textWatermarkMsgEl = document.getElementById('text-watermark-msg');
+                        if (textWatermarkMsgEl) {
+                            textWatermarkMsgEl.textContent = result.message || '无';
+                        }
+                    } else {
+                        // 其他模态的提取结果 - 只显示提取结果信息，不显示图像对比
                         resultText.textContent = `水印提取结果：\n\n检测到水印: ${result.detected ? '是' : '否'}\n水印消息: ${result.message || '无'}\n置信度: ${result.confidence ? (result.confidence * 100).toFixed(1) + '%' : '0%'}`;
                         resultText.style.display = 'block';
+                        
+                        // 确保文本结果容器显示，但隐藏文本特有的统计信息面板
+                        const textResultContainer = document.getElementById('text-result');
+                        if (textResultContainer) {
+                            textResultContainer.style.display = 'block';
+                            
+                            // 隐藏文本特有的标题和统计面板
+                            const textTitle = textResultContainer.querySelector('h3');
+                            if (textTitle) {
+                                textTitle.style.display = 'none';
+                            }
+                            
+                            const textInfoPanel = textResultContainer.querySelector('.text-info-panel');
+                            if (textInfoPanel) {
+                                textInfoPanel.style.display = 'none';
+                            }
+                        }
+                        return; // 直接返回，避免后续的文本模板显示
                     }
-                    break;
-                    
-                case 'image':
-                    mediaPreview.innerHTML = '<div style="color: var(--text-secondary); text-align: center;"><div style="font-size: 2rem; margin-bottom: 0.5rem;">🖼️</div><div style="font-size: 1rem; font-weight: 500;">图像处理完成<br><span style="font-size: 0.875rem; opacity: 0.7;">点击下载查看结果</span></div></div>';
-                    mediaPreview.style.display = 'flex';
-                    break;
-                    
-                case 'audio':
-                    mediaPreview.innerHTML = '<div style="color: var(--text-secondary); text-align: center;"><div style="font-size: 2rem; margin-bottom: 0.5rem;">🎵</div><div style="font-size: 1rem; font-weight: 500;">音频处理完成<br><span style="font-size: 0.875rem; opacity: 0.7;">点击下载查看结果</span></div></div>';
-                    mediaPreview.style.display = 'flex';
-                    break;
-                    
-                case 'video':
-                    mediaPreview.innerHTML = '<div style="color: var(--text-secondary); text-align: center;"><div style="font-size: 2rem; margin-bottom: 0.5rem;">🎬</div><div style="font-size: 1rem; font-weight: 500;">视频处理完成<br><span style="font-size: 0.875rem; opacity: 0.7;">点击下载查看结果</span></div></div>';
-                    mediaPreview.style.display = 'flex';
-                    break;
+                    showResultTemplate('text', 'generate', true);
+                } else if (operation === 'visible_mark') {
+                    // 显示标识操作结果
+                    if (currentModality === 'text') {
+                        // 文本显示标识结果
+                        if (result.output_text) {
+                            resultText.textContent = result.output_text;
+                            resultText.style.display = 'block';
+                            // 更新文本信息面板
+                            updateTextStatistics(result.output_text, '');
+                        }
+                        showResultTemplate('text', 'generate', true);
+                    } else {
+                        // 非文本模态显示标识结果，使用上传结果模板
+                        resultText.textContent = `显示标识添加成功!\n\n文件已保存，可下载查看结果。`;
+                        resultText.style.display = 'block';
+                        
+                        // 显示对应的结果模板 (使用上传模式模板，只显示带标识的结果)
+                        showResultTemplate(currentModality, 'upload', true);
+                        
+                        // 隐藏原始文件列，只显示带标识的结果
+                        if (result.task_id) {
+                            setTimeout(() => {
+                                const originalEl = document.getElementById(`original-${currentModality}`);
+                                if (originalEl) {
+                                    const container = originalEl.closest('.result-item');
+                                    if (container) container.style.display = 'none';
+                                }
+                                
+                                // 设置带标识文件源
+                                updateMediaSources(result.task_id, currentModality, 'upload', { files: { original: null } });
+                            }, 100);
+                        }
+                    }
+                }
             }
         }
 
@@ -1682,9 +2394,14 @@
 
         // 显示结果
         function showResults() {
-            document.getElementById('result-placeholder').style.display = 'none';
-            document.getElementById('result-content').classList.add('active');
-            document.getElementById('progress-container').style.display = 'block';
+            const placeholder = document.getElementById('result-placeholder');
+            if (placeholder) placeholder.style.display = 'none';
+
+            const resultContent = document.getElementById('result-content');
+            if (resultContent) resultContent.classList.add('active');
+
+            const progressContainer = document.getElementById('progress-container');
+            if (progressContainer) progressContainer.style.display = 'block';
             
             // 重置进度条
             const progressFill = document.getElementById('progress-fill');
@@ -1738,8 +2455,43 @@
 
         // 重置结果
         function resetResults() {
-            document.getElementById('result-placeholder').style.display = 'flex';
-            document.getElementById('result-content').classList.remove('active');
+            // 隐藏所有结果模板（图像/音频/视频/文本），清空显示状态
+            if (typeof hideAllResultTemplates === 'function') {
+                hideAllResultTemplates();
+            }
+
+            // 显示默认占位提示
+            const placeholder = document.getElementById('result-placeholder');
+            if (placeholder) placeholder.style.display = 'flex';
+
+            // 关闭进度条
+            const progressContainer = document.getElementById('progress-container');
+            if (progressContainer) progressContainer.style.display = 'none';
+
+            // 清空文本结果
+            const resultText = document.getElementById('result-text');
+            if (resultText) {
+                resultText.textContent = '';
+                resultText.style.display = 'none';
+            }
+
+            // 隐藏操作按钮与结果信息
+            const resultActions = document.getElementById('result-actions');
+            if (resultActions) resultActions.style.display = 'none';
+            const resultInfo = document.getElementById('result-info');
+            if (resultInfo) resultInfo.style.display = 'none';
+
+            // 重置状态徽章样式为处理中（当下一次开始时会更新）
+            const statusBadge = document.getElementById('status-badge');
+            if (statusBadge) {
+                statusBadge.className = 'status-badge status-processing';
+                statusBadge.innerHTML = '<span class="loading-spinner"></span> 处理中';
+            }
+
+            // 兼容旧结构
+            const resultContent = document.getElementById('result-content');
+            if (resultContent) resultContent.classList.remove('active');
+
             currentTaskId = null;
         }
 
@@ -1750,6 +2502,7 @@
             document.getElementById('message-input-upload').value = modalityConfig[currentModality].placeholders.message;
             removeFile();
             removeEmbedFile();
+            removeVisibleFile();
             
             // 重置embed输入模式到生成模式
             currentEmbedInputMode = 'generate';

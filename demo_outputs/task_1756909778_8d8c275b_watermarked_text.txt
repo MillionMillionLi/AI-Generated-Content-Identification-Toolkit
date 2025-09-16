@@ -1,0 +1,2 @@
+
+Lets see what the output looks like. The output file name will be “C:\Program Files\Bing Desktop\bin\wine32-1607_5.win32-static>” and you

@@ -1,0 +1,4 @@
+
+Ask a question based on the following sentence. Please use this statement as a guide when answering your student’s questions;
+My teacher said she would be absent for one week, and I hope that doesn’t happen!
+I understand

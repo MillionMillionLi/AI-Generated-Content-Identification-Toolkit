@@ -1,0 +1,2 @@
+
+Hello World! This is a blog post from the DotNetNuke.WebControls.Common.Contrib sample project in Visual Studio Code, using ASPNETCORE and Razor.

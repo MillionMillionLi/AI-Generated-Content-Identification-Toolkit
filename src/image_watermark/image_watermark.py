@@ -93,7 +93,8 @@ class ImageWatermark:
                        watermark_key: str = None, 
                        prompt: str = None,
                        message: str = None,
-                       **kwargs) -> Image.Image:
+                       return_original: bool = False,
+                       **kwargs) -> Union[Image.Image, Dict[str, Image.Image]]:
         """
         在图像中嵌入水印
         
@@ -102,9 +103,10 @@ class ImageWatermark:
             watermark_key: 水印密钥ID
             prompt: 生成提示词（用于扩散模型）
             message: 要嵌入的消息（字符串）
+            return_original: 是否同时返回原始图像（仅在AI生成模式下有效）
             
         Returns:
-            含水印的图像
+            含水印的图像，或包含 'original' 和 'watermarked' 键的字典
         """
         # 确保模型按当前算法已就绪
         self._ensure_model()
@@ -139,8 +141,17 @@ class ImageWatermark:
                 res = int(self.config.get('resolution', 512))
                 steps = int(self.config.get('num_inference_steps', 50))
                 gen = pipe(prompt, num_inference_steps=steps, height=res, width=res)
-                pil_img = gen.images[0]
-                return self.watermark_processor.embed(pil_img, message=message, **kwargs)
+                original_img = gen.images[0]  # 🆕 保存原始生成的图像
+                watermarked_img = self.watermark_processor.embed(original_img, message=message, **kwargs)
+                
+                # 🆕 根据 return_original 参数决定返回格式
+                if return_original:
+                    return {
+                        'original': original_img,
+                        'watermarked': watermarked_img
+                    }
+                else:
+                    return watermarked_img
             else:
                 return self.watermark_processor.embed(image_input, message=message, **kwargs)
         else:
@@ -197,7 +208,7 @@ class ImageWatermark:
             }
     
     def generate_with_watermark(self, prompt: str, watermark_key: str = None, 
-                               message: str = None, **kwargs) -> Image.Image:
+                               message: str = None, **kwargs) -> Union[Image.Image, Dict[str, Image.Image]]:
         """
         生成带水印的图像（等同于embed_watermark，但接口更明确）
         
@@ -207,7 +218,7 @@ class ImageWatermark:
             message: 要嵌入的消息
             
         Returns:
-            生成的含水印图像
+            生成的含水印图像，或包含 'original' 和 'watermarked' 键的字典
         """
         return self.embed_watermark(
             image_input=None,
