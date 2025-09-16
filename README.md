@@ -1,72 +1,75 @@
-# AI-Generated Content Identification Toolkit
+# AI生成内容识别工具包
 
 <div align="center">
-  <!-- Project logo placeholder - need logo image -->
+  <!-- 项目logo占位符 - 需要logo图片 -->
   <!-- <a href="https://github.com/your-repo-link">
     <img src="images/logo.png" alt="Logo" width="80" height="80">
   </a> -->
 
-  <h3 align="center">AI-Generated Content Identification Toolkit</h3>
+
+  <h3 align="center">AI生成内容标识技术开发套件</h3>
 
   <p align="center">
-    A one-stop open-source identification technology development kit supporting visible marking, invisible marking, and watermarking for text, image, audio, and video content
+    一站式开源标识技术开发套件，支持文本、图像、音频和视频内容的显式标识，隐式标识和隐水印功能
     <br />
-    <a href="#usage"><strong>Quick Start »</strong></a>
+    <a href="#使用方法"><strong>快速开始 »</strong></a>
     <br />
     <br />
-    <a href="pictures/watermark.mp4">Live Demo</a>
+    <a href="pictures/watermark.mp4">在线演示</a>
     ·
-    <a href="https://github.com/your-repo-link/issues">Report Bug</a>
+    <a href="https://github.com/your-repo-link/issues">报告问题</a>
     ·
-    <a href="https://github.com/your-repo-link/issues">Request Feature</a>
+    <a href="https://github.com/your-repo-link/issues">请求功能</a>
   </p>
+
 </div>
 
-<!-- TABLE OF CONTENTS -->
+<!-- 目录 -->
+
 <details>
-  <summary>Table of Contents</summary>
+  <summary>目录</summary>
   <ol>
     <li>
-      <a href="#about-the-project">About The Project</a>
+      <a href="#关于项目">关于项目</a>
       <ul>
-        <li><a href="#built-with">Built With</a></li>
+        <li><a href="#构建技术">构建技术</a></li>
       </ul>
     </li>
     <li>
-      <a href="#getting-started">Getting Started</a>
+      <a href="#开始使用">开始使用</a>
       <ul>
-        <li><a href="#prerequisites">Prerequisites</a></li>
-        <li><a href="#installation">Installation</a></li>
+        <li><a href="#前置要求">前置要求</a></li>
+        <li><a href="#安装">安装</a></li>
       </ul>
     </li>
-    <li><a href="#usage">Usage</a></li>
-    <li><a href="#web-demo">Web Demo</a></li>
-    <li><a href="#api-reference">API Reference</a></li>
-    <li><a href="#performance">Performance</a></li>
-    <li><a href="#roadmap">Roadmap</a></li>
-    <li><a href="#contributing">Contributing</a></li>
-    <li><a href="#license">License</a></li>
-    <li><a href="#contact">Contact</a></li>
-    <li><a href="#acknowledgments">Acknowledgments</a></li>
+    <li><a href="#使用方法">使用方法</a></li>
+    <li><a href="#网页演示">网页演示</a></li>
+    <li><a href="#api参考">API参考</a></li>
+    <li><a href="#性能">性能</a></li>
+    <li><a href="#发展路线">发展路线</a></li>
+    <li><a href="#贡献">贡献</a></li>
+    <li><a href="#许可证">许可证</a></li>
+    <li><a href="#联系">联系</a></li>
+    <li><a href="#致谢">致谢</a></li>
   </ol>
 </details>
 
-## About The Project
 
-<!-- Project screenshot placeholder - need web interface screenshot -->
-<!-- [![Product Screenshot][product-screenshot]](https://example.com) -->
+## 关于项目
 
-This toolkit provides a one-stop open-source identification technology development kit. It supports four major modalities: text, image, audio, and video, with capabilities for visible marking, invisible marking, and watermarking, comprehensively covering the identification scope stipulated by GB 45438-2025 "Cybersecurity Technology - Identification Methods for Artificially Generated and Synthesized Content".
+<!-- 项目截图占位符 - 需要网页界面截图 -->
+<!-- [![产品截图][product-screenshot]](https://example.com) -->
 
-### Why Choose This Toolkit?
+本项目提供一站式开源标识技术开发套件。支持文本、图像、音频和视频四大模态，具备显式标识、隐式标识和隐水印功能，全面覆盖GB 45438-2025《网络安全技术 人工智能生成合成内容标识方法》"标准规定的标识范围。
 
-- **Comprehensive Coverage**: Supports all identification methods required by GB 45438-2025 standard
-- **Multi-Modal Support**: Unified processing for text, image, audio, and video content
-- **Dual-Mode Operations**: Both AI content generation and existing file processing capabilities
-- **Production Ready**: Complete with web interface, batch processing, and performance optimization
+### 为什么选择我们？
 
+- **全面覆盖**：支持GB 45438-2025标准要求的所有标识方法
+- **多模态支持**：统一处理文本、图像、音频和视频内容
+- **双模式操作**：既支持AI内容生成，也支持现有文件处理
+- **生产就绪**：配备完整的网页界面、批量处理和性能优化
 
-### Built With
+### 构建技术
 
 * [![Python][Python.org]][Python-url]
 * [![PyTorch][PyTorch.org]][PyTorch-url]
@@ -74,81 +77,86 @@ This toolkit provides a one-stop open-source identification technology developme
 * [![Transformers][Transformers-badge]][Transformers-url]
 * [![Diffusers][Diffusers-badge]][Diffusers-url]
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+<p align="right">(<a href="#readme-top">返回顶部</a>)</p>
 
-## Getting Started
+## 开始使用
 
-### Prerequisites
+### 前置要求
 
-- Python 3.8 or higher
-- CUDA-capable GPU (recommended for optimal performance)
-- FFmpeg (required for video processing)
+- Python 3.8或更高版本
+- 支持CUDA的GPU（推荐用于最佳性能）
+- FFmpeg（视频处理必需）
 
-### Installation
+### 安装
 
-1. Clone the repository
+1. 克隆仓库
+
    ```bash
    git clone https://github.com/your-repo-link/unified_watermark_tool.git
    cd unified_watermark_tool
    ```
 
-2. Install core dependencies
+2. 安装核心依赖
+
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Install modality-specific dependencies (optional)
+3. 安装模态特定依赖（可选）
+
    ```bash
-   # For text watermarking
+   # 文本水印
    pip install -r src/text_watermark/credid/watermarking/MPAC/requirements.txt
-
-   # For image watermarking (PRC backend)
+   
+   # 图像水印（PRC后端）
    pip install -r src/image_watermark/PRC-Watermark/requirements.txt
-
-   # For audio watermarking
+   
+   # 音频水印
    pip install torch torchaudio julius soundfile librosa scipy matplotlib
-
-   # For advanced audio features (Bark TTS)
+   
+   # 高级音频功能（Bark TTS）
    pip install git+https://github.com/suno-ai/bark.git
    ```
 
-4. Configure environment (optional for offline mode)
+4. 配置环境（离线模式可选）
+
    ```bash
    export TRANSFORMERS_OFFLINE=1
    export HF_HUB_OFFLINE=1
-   export HF_ENDPOINT=https://hf-mirror.com  # For Chinese users
+   export HF_ENDPOINT=https://hf-mirror.com  # 中国用户
    ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+<p align="right">(<a href="#readme-top">返回顶部</a>)</p>
 
-## Usage
+## 使用方法
 
-### Quick Start
+### 快速开始
 
-#### Invisible Watermarking
+#### 水印
 
 ```python
 from src.unified.watermark_tool import WatermarkTool
 
-# Initialize the tool
+# 初始化工具
 tool = WatermarkTool()
 
-# Text invisible watermarking 
-watermarked_text = tool.embed("Please introduce AI-generated content", "my_message", 'text')
+# 文本水印
+watermarked_text = tool.embed("Please introduce AI generated content", "my_message", 'text')
 result = tool.extract(watermarked_text, 'text')
 
-# Image invisible watermarking
-img = tool.embed("a cat under the sun", "img_watermark", 'image')
+# 图像水印
+img = tool.embed("A cat under the sun", "img_watermark", 'image')
 
-# Audio invisible watermarking 
+# 音频水印
 audio = tool.embed("Hello world", "audio_watermark", 'audio',
                    output_path="output.wav")
 
-# Video invisible watermarking
+# 视频水印
 video = tool.embed("The sun shines on the sea", "video_watermark", 'video')
 ```
 
-#### Visible Marking 
+#### 显式标识
+
 ```python
 from src.utils.visible_mark import (
     add_text_mark_to_text,
@@ -158,15 +166,15 @@ from src.utils.visible_mark import (
 )
 from PIL import Image
 
-# Text visible marking
-original_text = "This is an example text content."
+# 文本显式标识
+original_text = "这是一个示例文本内容。"
 marked_text = add_text_mark_to_text(
     original_text,
     mark="本内容由人工智能生成",
     position="start"
 )
 
-# Image visible marking
+# 图像显式标识
 img = Image.open("input.jpg")
 marked_img = add_overlay_to_image(
     img,
@@ -176,7 +184,7 @@ marked_img = add_overlay_to_image(
     font_color="#FFFF00"
 )
 
-# Video visible marking
+# 视频显式标识
 marked_video_path = add_overlay_to_video_ffmpeg(
     "input.mp4",
     "output.mp4",
@@ -186,7 +194,7 @@ marked_video_path = add_overlay_to_video_ffmpeg(
     duration_seconds=3.0
 )
 
-# Audio visible marking (voice annotation)
+# 音频显式标识（语音标注）
 marked_audio_path = add_voice_mark_to_audio(
     "input.wav",
     "output.wav",
@@ -196,247 +204,198 @@ marked_audio_path = add_voice_mark_to_audio(
 )
 ```
 
-### Running the Web Interface
+### 运行网页界面
 
 ```bash
-# Start the Flask server
+# 启动Flask服务器
 python app.py
 
-# Open browser and navigate to
+# 打开浏览器并访问
 # http://localhost:5000
 ```
 
-### Advanced Configuration
+### 高级配置
 
-Edit configuration files in the `config/` directory:
+编辑`config/`目录中的配置文件：
 
-- `config/default_config.yaml`: Global settings for all modalities
-- `config/text_config.yaml`: Text watermarking specific settings
+- `config/default_config.yaml`：所有模态的全局设置
+- `config/text_config.yaml`：文本水印特定设置
 
-#### Configuration Example
+#### 配置示例
 
 ```yaml
-# Text watermarking configuration
+# 文本水印配置
 text_watermark:
-  algorithm: "credid"                    # CredID algorithm for LLM text watermarking
-  mode: "lm"                             # LM mode (language model, higher quality)
+  algorithm: "credid"                    # CredID算法用于LLM文本水印
+  mode: "lm"                             # LM模式（语言模型，更高质量）
   credid:
-    watermark_key: "default_key"          # Watermark key identifier
+    watermark_key: "default_key"          # 水印密钥标识符
     lm_params:
-      delta: 1.5                         # Logits modification strength (watermark strength)
-      prefix_len: 10                     # Prefix length for context analysis
-      message_len: 10                    # Watermark message length in bits
+      delta: 1.5                         # 逻辑修改强度（水印强度）
+      prefix_len: 10                     # 上下文分析的前缀长度
+      message_len: 10                    # 水印消息长度（位）
     wm_params:
-      encode_ratio: 8                    # Encoding ratio (tokens per watermark bit)
+      encode_ratio: 8                    # 编码比率（每个水印位的令牌数）
 
-# Image watermarking configuration
+# 图像水印配置
 image_watermark:
-  algorithm: "videoseal"                 # VideoSeal algorithm (default) or "prc"
-  resolution: 512                       # Image resolution for AI generation mode
-  num_inference_steps: 30                # Inference steps (higher = better quality)
-  guidance_scale: 7.5                    # Guidance scale (higher = more prompt adherence)
+  algorithm: "videoseal"                 # VideoSeal算法（默认）
+  resolution: 512                       # AI生成模式的图像分辨率
+  num_inference_steps: 30                # 推理步骤（越高质量越好）
+  guidance_scale: 7.5                    # 引导比例（越高越符合提示）
   videoseal:
-    replicate: 32                        # Multi-frame replication for enhanced detection
-    chunk_size: 16                       # Processing chunk size for efficiency
+    replicate: 32                        # 多帧复制以增强检测
+    chunk_size: 16                       # 处理块大小用于效率
 
-# Audio watermarking configuration
+# 音频水印配置
 audio_watermark:
-  algorithm: "audioseal"                 # AudioSeal algorithm for audio watermarking
-  sample_rate: 16000                     # Required sample rate for AudioSeal (16kHz)
-  message_bits: 16                       # Watermark message length in bits
+  algorithm: "audioseal"                 # AudioSeal音频水印算法
+  sample_rate: 16000                     # AudioSeal所需采样率（16kHz）
+  message_bits: 16                       # 水印消息长度（位）
   audioseal:
-    nbits: 16                           # Message encoding bits (SHA256-based)
-    alpha: 1.0                          # Watermark strength adjustment
+    nbits: 16                           # 消息编码位（基于SHA256）
+    alpha: 1.0                          # 水印强度调整
 
-# Video watermarking configuration
+# 视频水印配置
 video_watermark:
-  watermark: "videoseal"                 # VideoSeal watermarking algorithm
+  watermark: "videoseal"                 # VideoSeal水印算法
   videoseal:
-    lowres_attenuation: true             # Enable low-resolution optimization
-    chunk_size: 16                       # Processing chunk size for large videos
+    lowres_attenuation: true             # 启用低分辨率优化
+    chunk_size: 16                       # 大视频的处理块大小
 ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+<p align="right">(<a href="#readme-top">返回顶部</a>)</p>
 
-## Web Demo
+## 网页演示
 
-![Web Interface](pictures/web.png)
+![网页界面](pictures/web.png)
 
-The toolkit includes a comprehensive web interface featuring:
+工具包包含一个综合的网页界面，具有以下特性：
 
-### 🎨 Interface Features
-- **Dual-Column Layout**: Operations panel on the left, results display on the right
-- **Mode Switching**: Toggle between "AI Generation" and "Upload File" modes
-- **Identification Method Selection**: Choose between "Invisible Watermarking" and "Visible Marking"
-- **Real-time Comparison**: Side-by-side display of original vs processed content
-- **Multi-format Support**: Handles all major image, audio, and video formats
+### 🎨 界面特色
 
-### 🚀 Supported Operations
+- **双栏布局**：左侧操作面板，右侧结果显示
+- **模式切换**：在"AI生成"和"上传文件"模式之间切换
+- **识别方法选择**：在"水印"和"显式标识"之间选择
+- **实时对比**：原始内容与处理后内容的并排显示
+- **多格式支持**：处理所有主要图像、音频和视频格式
 
-| Modality | Invisible Watermarking | Visible Marking | File Upload Support |
-|----------|----------------------|-----------------|-------------------|
-| **Text** | ✅ CredID  | ✅ Text annotation | ❌ (Generate only) |
-| **Image** | ✅ VideoSeal  | ✅ Overlay marking | ✅ Multi-format |
-| **Audio** | ✅ AudioSeal  | ✅ Voice annotation | ✅ Multi-format |
-| **Video** | ✅  VideoSeal | ✅ Overlay marking | ✅ Auto-transcoding |
+### 🚀 支持的操作
 
+| 模态     | 水印   | 显式标识   | 文件上传支持 |
+| -------- | ------------ | ---------- | ------------ |
+| **文本** | ✅ CredID     | ✅ 文本标注 | ❌ (仅生成)   |
+| **图像** | ✅ VideoSeal  | ✅ 叠加标记 | ✅ 多格式     |
+| **音频** | ✅ AudioSeal  | ✅ 语音标注 | ✅ 多格式     |
+| **视频** | ✅  VideoSeal | ✅ 叠加标记 | ✅ 自动转码   |
 
+<p align="right">(<a href="#readme-top">返回顶部</a>)</p>
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+## API参考
 
-## API Reference
+### 核心API
 
-### Core API
-
-#### Invisible Watermarking API
+#### 水印API
 
 ```python
-# Embedding invisible watermarks
+# 嵌入水印
 result = tool.embed(
-    prompt="content or prompt",           # Text content or generation prompt
-    message="watermark_message",          # Watermark to embed
-    modality="text|image|audio|video",    # Content type
-    **kwargs                              # Modality-specific parameters
+    prompt="内容或提示",                    # 文本内容或生成提示
+    message="watermark_message",          # 要嵌入的水印
+    modality="text|image|audio|video",    # 内容类型
+    **kwargs                              # 模态特定参数
 )
 
-# Extracting invisible watermarks
+# 提取水印
 detection = tool.extract(
-    content,                              # Watermarked content
-    modality="text|image|audio|video",    # Content type
-    **kwargs                              # Detection parameters
+    content,                              # 带水印的内容
+    modality="text|image|audio|video",    # 内容类型
+    **kwargs                              # 检测参数
 )
 ```
 
-#### Visible Marking API
+#### 显式标识API
 
 ```python
 from src.utils.visible_mark import *
 
-# Add visible marks to different modalities
+# 为不同模态添加显式标识
 marked_text = add_text_mark_to_text(text, mark, position)
 marked_image = add_overlay_to_image(image, text, position, font_percent)
 marked_video_path = add_overlay_to_video_ffmpeg(input_path, output_path, text)
 marked_audio_path = add_voice_mark_to_audio(input_path, output_path, mark_text)
 ```
 
-### REST API Endpoints
+### REST API端点
 
 ```bash
-# Invisible watermark embedding
+# 水印嵌入
 POST /api/watermark/<modality>
 
-# Visible marking
+# 显式标识
 POST /api/visible_mark
 
-# Task status checking
+# 任务状态检查
 GET /api/status/<task_id>
 
-# File serving
+# 文件服务
 GET /api/files/<task_id>/original
 GET /api/files/<task_id>/watermarked
 ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+<p align="right">(<a href="#readme-top">返回顶部</a>)</p>
 
-<!-- ## Performance
+## 发展路线
 
-### Benchmarks
+- [x] **水印实现**
+  - [x] CredID文本水印
+  - [x] VideoSeal图像/视频水印
+  - [x] AudioSeal音频水印
+  - [x] PRC-Watermark替代后端
 
-#### Invisible Watermarking Performance
+- [x] **显式标识实现**
+  - [x] 文本内容标注
+  - [x] 图像叠加标记
+  - [x] 视频叠加标记（FFmpeg）
+  - [x] 音频语音标注（Bark TTS）
 
-| Operation | Processing Time | Quality Metrics | Success Rate |
-|-----------|----------------|-----------------|--------------|
-| **Text Generation** | ~2-5s per 100 tokens | N/A | 100% |
-| **Image Processing** | ~1-10s per image | PSNR >30dB | 100% |
-| **Audio Embedding** | 0.93s per second | SNR 44.45dB | 100% |
-| **Audio Extraction** | 0.04s per second | Correlation >0.95 | 100% |
-| **Video Generation** | ~3s per 13 frames | High quality | 100% |
-| **Batch Processing** | 2.8s for 3 audio files | SNR >40dB | 100% |
+- [x] **网页界面**
+  - [x] 双模式支持（AI生成+文件上传）
+  - [x] 识别方法选择（不可见/可见）
+  - [x] 实时对比显示
+  - [x] 响应式设计
+  - [x] 浏览器兼容的媒体转码
 
-#### Visible Marking Performance
+- [x] **合规与标准**
+  - [x] GB 45438-2025合规
+  - [x] 标准标记文本模板
+  - [x] 可配置的定位和样式
+  - [x] 多模态统一方法
 
-| Operation | Processing Time | Quality Metrics | Compliance |
-|-----------|----------------|-----------------|------------|
-| **Text Annotation** | <0.01s | Readable overlay | GB 45438-2025 |
-| **Image Overlay** | 0.1-0.5s per image | Anti-aliased text | GB 45438-2025 |
-| **Video Overlay** | Real-time via FFmpeg | Professional quality | GB 45438-2025 |
-| **Audio Voice Mark** | 3-8s (TTS generation) | Natural speech | GB 45438-2025 | -->
+- [ ] **未来增强**
+  - [ ] 其他水印算法
+  - [ ] 移动应用界面
+  - [ ] 云部署选项
+  - [ ] 高级分析仪表板
+  - [ ] 界面多语言支持
 
+查看[开放问题](https://github.com/your-repo-link/issues)获取完整的功能提议和已知问题列表。
 
+<p align="right">(<a href="#readme-top">返回顶部</a>)</p>
 
-<!-- <p align="right">(<a href="#readme-top">back to top</a>)</p> -->
+## 致谢
 
-## Roadmap
+* [Meta AudioSeal](https://github.com/facebookresearch/audioseal) - 音频水印算法
+* [VideoSeal](https://github.com/facebookresearch/videoseal) - 视频水印技术
+* [Bark TTS](https://github.com/suno-ai/bark) - 文本转语音合成
+* [HunyuanVideo](https://huggingface.co/hunyuanvideo-community/HunyuanVideo) - 文本转视频生成
+* [Hugging Face](https://huggingface.co) - 模型托管和transformers库
+* [PyTorch](https://pytorch.org) - 深度学习框架
 
-- [x] **Invisible Watermarking Implementation**
-  - [x] CredID text watermarking
-  - [x] VideoSeal image/video watermarking
-  - [x] AudioSeal audio watermarking
-  - [x] PRC-Watermark alternative backend
+<p align="right">(<a href="#readme-top">返回顶部</a>)</p>
 
-- [x] **Visible Marking Implementation**
-  - [x] Text content annotation
-  - [x] Image overlay marking
-  - [x] Video overlay marking (FFmpeg)
-  - [x] Audio voice annotation (Bark TTS)
+<!-- MARKDOWN链接和图像 -->
 
-- [x] **Web Interface**
-  - [x] Dual-mode support (AI generation + file upload)
-  - [x] Identification method selection (invisible/visible)
-  - [x] Real-time comparison display
-  - [x] Responsive design
-  - [x] Browser-compatible media transcoding
-
-- [x] **Compliance & Standards**
-  - [x] GB 45438-2025 compliance
-  - [x] Standard marking text templates
-  - [x] Configurable positioning and styling
-  - [x] Multi-modal unified approach
-
-- [ ] **Future Enhancements**
-  - [ ] Additional watermarking algorithms
-  - [ ] Mobile app interface
-  - [ ] Cloud deployment options
-  - [ ] Advanced analytics dashboard
-  - [ ] Multi-language support for UI
-
-See the [open issues](https://github.com/your-repo-link/issues) for a full list of proposed features and known issues.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- ## Contributing
-
-Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## License
-
-Distributed under the [LICENSE_TYPE] License. See `LICENSE` for more information.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Contact
-
-<!-- Contact information needed 
-Your Name - [@your_twitter](https://twitter.com/your_username) - email@example.com
-
-Project Link: [https://github.com/your-repo-link/unified_watermark_tool](https://github.com/your-repo-link/unified_watermark_tool)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p> -->
-
-## Acknowledgments
-
-* [Meta AudioSeal](https://github.com/facebookresearch/audioseal) - Audio watermarking algorithm
-* [VideoSeal](https://github.com/facebookresearch/videoseal) - Video watermarking technology
-* [Bark TTS](https://github.com/suno-ai/bark) - Text-to-speech synthesis
-* [HunyuanVideo](https://huggingface.co/hunyuanvideo-community/HunyuanVideo) - Text-to-video generation
-* [Hugging Face](https://huggingface.co) - Model hosting and transformers library
-* [PyTorch](https://pytorch.org) - Deep learning framework
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- MARKDOWN LINKS & IMAGES -->
 [Python.org]: https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white
 [Python-url]: https://python.org/
 [PyTorch.org]: https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white
